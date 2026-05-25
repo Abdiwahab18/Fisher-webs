@@ -1,4 +1,4 @@
-import { findUserById, getAllUsers, deleteUserById } from '../models/userModel.js';
+import { findUserById, getAllUsers, deleteUserById, updateUserStatus, getSystemStats, getRevenueByDay, updateUserProfile } from '../models/userModel.js';
 
 export async function currentUser(req, res) {
   const user = await findUserById(req.user.id);
@@ -21,5 +21,47 @@ export async function deleteUser(req, res) {
   res.json({ message: 'User deleted successfully' });
 }
 
+export async function updateUserStatusController(req, res) {
+  const { status } = req.body;
+  if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status value' });
+  }
+  const updatedUser = await updateUserStatus(req.params.id, status);
+  if (!updatedUser) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+  res.json(updatedUser);
+}
 
+export async function getSystemStatsController(req, res) {
+  const stats = await getSystemStats();
+  res.json(stats);
+}
+
+export async function getRevenueAnalytics(req, res) {
+  const days = req.query.days ? parseInt(req.query.days) : 7;
+  const revenueData = await getRevenueByDay(days);
+  res.json(revenueData);
+}
+
+export async function updateProfileController(req, res) {
+  const { name, email } = req.body;
+  
+  if (!name && !email) {
+    return res.status(400).json({ message: 'At least one field is required to update' });
+  }
+
+  try {
+    const updatedUser = await updateUserProfile(req.user.id, { name, email });
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(updatedUser);
+  } catch (error) {
+    if (error.message.includes('duplicate key')) {
+      return res.status(409).json({ message: 'Email already in use' });
+    }
+    res.status(500).json({ message: 'Error updating profile' });
+  }
+}
 

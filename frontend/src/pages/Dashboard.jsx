@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { useNotification } from '../context/NotificationContext';
 
 function Dashboard() {
   const [user, setUser] = useState(null);
@@ -11,9 +12,17 @@ function Dashboard() {
   const [catchTrends, setCatchTrends] = useState([]);
   const [recentCatches, setRecentCatches] = useState([]);
   const [realTimeFeed, setRealTimeFeed] = useState([]);
+  const [showRecentFilter, setShowRecentFilter] = useState(false);
+  const [filterSpecies, setFilterSpecies] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterLocation, setFilterLocation] = useState('All');
+  const [earnings, setEarnings] = useState(null);
+  const [earningsTrends, setEarningsTrends] = useState([]);
+  const [favoriteCount, setFavoriteCount] = useState(0);
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
   const isAdmin = userRole === 'admin';
+  const isFisherman = userRole === 'fisherman';
 
   useEffect(() => {
     if (userRole === 'admin') {
@@ -21,106 +30,130 @@ function Dashboard() {
     }
   }, [userRole, navigate]);
 
-  useEffect(() => {
-    async function loadDashboard() {
-      try {
-        const [profileRes, catchesRes, ordersRes] = await Promise.all([
-          api.get('/users/me'),
-          api.get(isAdmin ? '/catches' : '/catches/my-catches'),
-          api.get(isAdmin ? '/orders' : '/orders/my-orders'),
-        ]);
+  const { notificationsHistory } = useNotification();
+  const isCustomer = userRole === 'customer';
 
-        const profile = profileRes.data;
-        const catchesData = (catchesRes.data || []).map(item => ({
-          ...item,
-          quantity: Number(item.quantity) || 0,
-          price: Number(item.price) || 0,
-        }));
-        const ordersData = (ordersRes.data || []).map(item => ({
-          ...item,
-          total_price: Number(item.total_price) || 0,
-        }));
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [profileRes, catchesRes, ordersRes] = await Promise.all([
+        api.get('/users/me'),
+        api.get(isAdmin ? '/catches' : isFisherman ? '/catches/my-catches' : '/catches'),
+        api.get(isAdmin || isFisherman ? '/orders' : '/orders/my-orders'),
+      ]);
 
-        setUser(profile);
-        setCatches(catchesData);
-        setOrders(ordersData);
+      const profile = profileRes.data;
+      const catchesData = (catchesRes.data || []).map(item => ({
+        ...item,
+        quantity: Number(item.quantity) || 0,
+        price: Number(item.price) || 0,
+      }));
+      const ordersData = (ordersRes.data || []).map(item => ({
+        ...item,
+        total_price: Number(item.total_price) || 0,
+      }));
 
-        const recent = catchesData
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 5)
-          .map((item, index) => ({
-            id: item.id || index,
-            species: item.fish_name,
-            weight: `${item.quantity.toFixed(2)} kg`,
-            location: item.location || 'Unknown',
-            time: new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'LISTED',
-            icon: '🐟',
-          }));
+      setUser(profile);
+      setCatches(catchesData);
+      setOrders(ordersData);
 
-        setRecentCatches(recent);
-
-        const days = Array.from({ length: 7 }, (_, index) => {
-          const date = new Date();
-          date.setDate(date.getDate() - (6 - index));
-          return {
-            key: date.toISOString().slice(0, 10),
-            day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-            value: 0,
-          };
-        });
-
-        const trendMap = new Map(days.map(item => [item.key, item]));
-        catchesData.forEach(item => {
-          const key = new Date(item.created_at).toISOString().slice(0, 10);
-          if (trendMap.has(key)) {
-            trendMap.get(key).value += item.quantity;
-          }
-        });
-
-        setCatchTrends(Array.from(trendMap.values()));
-
-        const newestOrder = ordersData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-        const newestCatch = catchesData[0];
-
-        const feed = [];
-        if (newestOrder) {
-          feed.push({
-            id: `order-${newestOrder.id}`,
-            title: 'New Order Received',
-            subtitle: `Order #${newestOrder.id} • $${newestOrder.total_price.toFixed(2)}`,
-            time: getRelativeTime(newestOrder.created_at),
-            icon: '🛒',
-          });
+      // Load earnings data for fishermen
+      if (isFisherman) {
+        try {
+          const [earningsRes, dailyEarningsRes] = await Promise.all([
+            api.get('/earnings/summary'),
+            api.get('/earnings/daily?days=7'),
+          ]);
+          setEarnings(earningsRes.data);
+          setEarningsTrends(dailyEarningsRes.data || []);
+        } catch (err) {
+          console.error('Error loading earnings:', err);
         }
-        if (newestCatch) {
-          feed.push({
-            id: `catch-${newestCatch.id}`,
-            title: 'Latest Catch Logged',
-            subtitle: `${newestCatch.fish_name} • ${newestCatch.quantity.toFixed(2)} kg`,
-            time: getRelativeTime(newestCatch.created_at),
-            icon: '🐟',
-          });
-        }
-        if (!feed.length) {
-          feed.push({
-            id: 'empty',
-            title: 'Waiting for new data',
-            subtitle: 'No catches or orders have been logged yet.',
-            time: '—',
-            icon: '📡',
-          });
-        }
-
-        setRealTimeFeed(feed);
-      } catch (err) {
-        setError('Unable to load dashboard data.');
-        console.error(err);
       }
-    }
 
+      const recent = catchesData
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 5)
+        .map((item, index) => ({
+          id: item.id || index,
+          species: item.fish_name,
+          weight: `${item.quantity.toFixed(2)} kg`,
+          location: item.location || 'Unknown',
+          time: new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: item.status || 'LISTED',
+          icon: '🐟',
+        }));
+
+      setRecentCatches(recent);
+
+      const days = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - index));
+        return {
+          key: date.toISOString().slice(0, 10),
+          day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+          value: 0,
+        };
+      });
+
+      const trendMap = new Map(days.map(item => [item.key, item]));
+      catchesData.forEach(item => {
+        const key = new Date(item.created_at).toISOString().slice(0, 10);
+        if (trendMap.has(key)) {
+          trendMap.get(key).value += item.quantity;
+        }
+      });
+
+      setCatchTrends(Array.from(trendMap.values()));
+
+      const newestOrder = ordersData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      const newestCatch = catchesData[0];
+
+      const feed = [];
+      if (newestOrder) {
+        feed.push({
+          id: `order-${newestOrder.id}`,
+          title: 'New Order Received',
+          subtitle: `Order #${newestOrder.id} • $${newestOrder.total_price.toFixed(2)}`,
+          time: getRelativeTime(newestOrder.created_at),
+          icon: '🛒',
+        });
+      }
+      if (newestCatch) {
+        feed.push({
+          id: `catch-${newestCatch.id}`,
+          title: 'Latest Catch Logged',
+          subtitle: `${newestCatch.fish_name} • ${newestCatch.quantity.toFixed(2)} kg`,
+          time: getRelativeTime(newestCatch.created_at),
+          icon: '🐟',
+        });
+      }
+
+      setRealTimeFeed(feed);
+    } catch (err) {
+      setError('Unable to load dashboard data.');
+      console.error(err);
+    }
+  }, [isAdmin, isFisherman]);
+
+  // initial load
+  useEffect(() => {
     loadDashboard();
-  }, [isAdmin]);
+  }, [loadDashboard]);
+
+  // reload when notifications history changes (real-time events)
+  const prevNotifCount = useRef((notificationsHistory || []).length);
+  useEffect(() => {
+    const curr = (notificationsHistory || []).length;
+    if (curr > prevNotifCount.current) {
+      loadDashboard();
+    }
+    prevNotifCount.current = curr;
+  }, [notificationsHistory, loadDashboard]);
+
+  useEffect(() => {
+    const savedFavorites = localStorage.getItem('buyer_favorites');
+    setFavoriteCount(savedFavorites ? JSON.parse(savedFavorites).length : 0);
+  }, []);
 
   function getRelativeTime(dateString) {
     const date = new Date(dateString);
@@ -144,6 +177,36 @@ function Dashboard() {
   const dailySales = orders
     .filter(order => new Date(order.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000))
     .reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
+
+  const filteredRecentCatches = recentCatches.filter((item) => {
+    const matchesSpecies = filterSpecies === 'All' || item.species === filterSpecies;
+    const matchesStatus = filterStatus === 'All' || item.status === filterStatus;
+    const matchesLocation = filterLocation === 'All' || item.location === filterLocation;
+    return matchesSpecies && matchesStatus && matchesLocation;
+  });
+
+  const exportRecentCatches = () => {
+    if (!filteredRecentCatches.length) {
+      alert('No catches to export.');
+      return;
+    }
+    const headers = ['species', 'weight', 'location', 'time', 'status'];
+    const rows = filteredRecentCatches.map(c => [c.species, c.weight, c.location, c.time, c.status]);
+    const csv = [headers.join(','), ...rows.map(r => r.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `recent-catches-${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const openNewCatchReport = () => {
+    navigate('/fisherman');
+  };
   const activeOrdersCount = orders.filter(
     order => order.status && !['delivered', 'completed'].includes(order.status.toLowerCase())
   ).length;
@@ -200,7 +263,7 @@ function Dashboard() {
             <span>Orders</span>
           </button>
           
-          {/* Admin Panel - Admin only */}
+          {/* Admin Panel - Admin only
           {userRole === 'admin' && (
             <button
               onClick={() => navigate('/admin')}
@@ -209,7 +272,7 @@ function Dashboard() {
               <span>👨‍💼</span>
               <span>Admin Panel</span>
             </button>
-          )}
+          )} */}
           
           {/* Settings - All authenticated users */}
           <button
@@ -269,36 +332,49 @@ function Dashboard() {
         <div className="grid grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-2xl p-5 shadow-md">
             <div className="flex justify-between items-start mb-3">
-              <p className="text-slate-500 text-xs font-semibold">TOTAL FISH CATCH</p>
+              <p className="text-slate-500 text-xs font-semibold">{isFisherman ? 'TOTAL FISH CATCH' : 'AVAILABLE FISH'}</p>
               <span className="text-xl">🎣</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900">{totalCatchWeight.toFixed(2)}</span>
-              <span className="text-xs font-semibold">kg</span>
+              <span className="text-2xl font-bold text-slate-900">{isFisherman ? totalCatchWeight.toFixed(2) : catches.length}</span>
+              <span className="text-xs font-semibold">{isFisherman ? 'kg' : 'listings'}</span>
             </div>
-            <p className="text-slate-500 text-xs font-semibold mt-2">Across {catches.length} logged catches</p>
+            <p className="text-slate-500 text-xs font-semibold mt-2">{isFisherman ? `Across ${catches.length} logged catches` : 'Live market inventory'}</p>
           </div>
+
+          {isFisherman ? (
+            <div className="bg-white rounded-2xl p-5 shadow-md">
+              <div className="flex justify-between items-start mb-3">
+                <p className="text-slate-500 text-xs font-semibold">EARNINGS</p>
+                <span className="text-xl">💰</span>
+              </div>
+              <div>
+                <span className="text-2xl font-bold text-slate-900">${Number(earnings.total_earnings || 0).toFixed(2)}</span>
+              </div>
+              <p className="text-slate-500 text-xs font-semibold mt-2">Completed orders</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-5 shadow-md">
+              <div className="flex justify-between items-start mb-3">
+                <p className="text-slate-500 text-xs font-semibold">FAVORITE LISTINGS</p>
+                <span className="text-xl">⭐</span>
+              </div>
+              <div>
+                <span className="text-2xl font-bold text-slate-900">{favoriteCount}</span>
+              </div>
+              <p className="text-slate-500 text-xs font-semibold mt-2">Saved buy recommendations</p>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl p-5 shadow-md">
             <div className="flex justify-between items-start mb-3">
-              <p className="text-slate-500 text-xs font-semibold">DAILY SALES</p>
-              <span className="text-xl">💰</span>
+              <p className="text-slate-500 text-xs font-semibold">{isFisherman ? 'DAILY SALES' : 'RECENT ORDERS'}</p>
+              <span className="text-xl">💳</span>
             </div>
             <div>
-              <span className="text-2xl font-bold text-slate-900">${dailySales.toFixed(2)}</span>
+              <span className="text-2xl font-bold text-slate-900">{isFisherman ? `$${dailySales.toFixed(2)}` : orders.length}</span>
             </div>
-            <p className="text-slate-500 text-xs font-semibold mt-2">Last 24 hours</p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 shadow-md">
-            <div className="flex justify-between items-start mb-3">
-              <p className="text-slate-500 text-xs font-semibold">REVENUE</p>
-              <span className="text-xl">📊</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900">${totalRevenue.toFixed(2)}</span>
-            </div>
-            <p className="text-slate-500 text-xs font-semibold mt-2">Based on {orders.length} orders</p>
+            <p className="text-slate-500 text-xs font-semibold mt-2">{isFisherman ? 'Last 24 hours' : 'Orders in your history'}</p>
           </div>
 
           <div className="bg-white rounded-2xl p-5 shadow-md">
@@ -375,7 +451,10 @@ function Dashboard() {
                 </div>
               ))}
             </div>
-            <button className="w-full mt-4 text-cyan-600 text-sm font-semibold hover:text-cyan-700">
+            <button
+              onClick={() => navigate('/notifications')}
+              className="w-full mt-4 text-cyan-600 text-sm font-semibold hover:text-cyan-700"
+            >
               View All Notifications
             </button>
           </div>
@@ -386,17 +465,69 @@ function Dashboard() {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-semibold text-slate-900">Recent Catches</h2>
             <div className="flex gap-3">
-              <button className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50">
+              <button
+                onClick={() => setShowRecentFilter(!showRecentFilter)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
                 🔽 Filter
               </button>
-              <button className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50">
+              <button
+                onClick={exportRecentCatches}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
                 📥 Export
               </button>
-              <button className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-semibold hover:bg-cyan-600">
+              <button
+                onClick={openNewCatchReport}
+                className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-semibold hover:bg-cyan-600"
+              >
                 + NEW CATCH REPORT
               </button>
             </div>
           </div>
+          {showRecentFilter && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Species</label>
+                <select
+                  value={filterSpecies}
+                  onChange={(e) => setFilterSpecies(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2"
+                >
+                  <option>All</option>
+                  {recentCatches.map(item => item.species).filter((value, index, self) => self.indexOf(value) === index).map((species) => (
+                    <option key={species}>{species}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2"
+                >
+                  <option>All</option>
+                  <option>LISTED</option>
+                  <option>PROCESSING</option>
+                  <option>VERIFIED</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Location</label>
+                <select
+                  value={filterLocation}
+                  onChange={(e) => setFilterLocation(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2"
+                >
+                  <option>All</option>
+                  {recentCatches.map(item => item.location).filter((value, index, self) => self.indexOf(value) === index).map((location) => (
+                    <option key={location}>{location}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -410,32 +541,40 @@ function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recentCatches.map((catch_) => (
-                  <tr key={catch_.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{catch_.icon}</span>
-                        <span className="font-semibold text-slate-900">{catch_.species}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4 text-slate-700">{catch_.weight}</td>
-                    <td className="py-4 px-4 text-slate-700">{catch_.location}</td>
-                    <td className="py-4 px-4 text-slate-700">{catch_.time}</td>
-                    <td className="py-4 px-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          catch_.status === 'VERIFIED'
-                            ? 'bg-green-100 text-green-700'
-                            : catch_.status === 'PROCESSING'
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-blue-100 text-blue-700'
-                        }`}
-                      >
-                        {catch_.status}
-                      </span>
+                {filteredRecentCatches.length > 0 ? (
+                  filteredRecentCatches.map((catch_) => (
+                    <tr key={catch_.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{catch_.icon}</span>
+                          <span className="font-semibold text-slate-900">{catch_.species}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-slate-700">{catch_.weight}</td>
+                      <td className="py-4 px-4 text-slate-700">{catch_.location}</td>
+                      <td className="py-4 px-4 text-slate-700">{catch_.time}</td>
+                      <td className="py-4 px-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            catch_.status === 'VERIFIED'
+                              ? 'bg-green-100 text-green-700'
+                              : catch_.status === 'PROCESSING'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          {catch_.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="py-6 px-4 text-center text-sm text-slate-500">
+                      No catches match the selected filters.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

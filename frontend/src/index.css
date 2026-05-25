@@ -2,8 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --ocean-blue: #0277BD;
+  --aqua: #00BCD4;
+  --light-bg: #F5F7FA;
+  --success-green: #28a745;
+}
+
+.header {
+  background-color: var(--ocean-blue);
+  color: #ffffff;
+}
+
+.btn {
+  background-color: var(--aqua);
+  color: #ffffff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+}
+
+.btn:hover {
+  filter: brightness(0.95);
+}
+
+.text-success {
+  color: var(--success-green);
+}
+
+.bg-success {
+  background-color: var(--success-green);
+  color: #ffffff;
+}
+
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  background-color: var(--light-bg);
+  @apply text-slate-900 antialiased;
+}
+
+.dark body {
+  @apply bg-slate-950 text-slate-100;
 }
 
 button,

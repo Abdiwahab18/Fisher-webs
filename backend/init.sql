@@ -16,20 +16,27 @@ CREATE TABLE IF NOT EXISTS fish_catches (
   id SERIAL PRIMARY KEY,
   fish_name VARCHAR(100) NOT NULL,
   quantity DECIMAL(10,2) NOT NULL,
+  weight DECIMAL(10,2),
   price DECIMAL(10,2) NOT NULL,
   location VARCHAR(255),
   image TEXT,
+  status VARCHAR(50) DEFAULT 'listed',
+  catch_date DATE,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Orders table
 CREATE TABLE IF NOT EXISTS orders (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  fisherman_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   total_price DECIMAL(10,2) NOT NULL,
   status VARCHAR(50) DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  order_type VARCHAR(50) DEFAULT 'purchase',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Order items table

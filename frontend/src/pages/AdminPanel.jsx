@@ -6,16 +6,15 @@ function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [catches, setCatches] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [revenueData, setRevenueData] = useState([]);
   const [error, setError] = useState('');
-  const [salesData, setSalesData] = useState([
-    { day: 'Mon', sales: 4000 },
-    { day: 'Tue', sales: 3000 },
-    { day: 'Wed', sales: 2000 },
-    { day: 'Thu', sales: 2780 },
-    { day: 'Fri', sales: 1890 },
-    { day: 'Sat', sales: 2390 },
-    { day: 'Sun', sales: 3490 },
-  ]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  // const navigate = useNavigate()
+
+  const [salesData, setSalesData] = useState([]);
 
   const [recentActivity] = useState([
     { id: 1, title: 'Fleet Alpha docked', subtitle: '2 days ago • Port of Seattle', icon: '⚓' },
@@ -77,6 +76,20 @@ function AdminPanel() {
     navigate('/login');
   };
 
+  const handleUserStatusChange = async (userId, newStatus) => {
+    try {
+      const response = await api.patch(`/users/${userId}/status`, { status: newStatus });
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === userId ? { ...u, status: response.data.status } : u
+        )
+      );
+    } catch (err) {
+      setError('Unable to update user status.');
+      console.error(err);
+    }
+  };
+
   const handleDeleteUser = async (id) => {
     if (!window.confirm('Delete this user? This action cannot be undone.')) return;
 
@@ -87,6 +100,79 @@ function AdminPanel() {
       setError(err.response?.data?.message || 'Unable to delete user.');
       console.error(err);
     }
+  };
+
+  const generateCSV = (headers, rows) => {
+    const escape = (val) => {
+      if (val === null || val === undefined) return '';
+      const s = String(val);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const headerLine = headers.join(',');
+    const lines = rows.map(row => headers.map(h => escape(row[h])).join(','));
+    return [headerLine, ...lines].join('\n');
+  };
+
+  const generateReport = () => {
+    const sections = [];
+
+    if (users && users.length) {
+      const userHeaders = ['id', 'name', 'email', 'role', 'status', 'created_at'];
+      const userRows = users.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        status: u.status || 'Active',
+        created_at: u.created_at || u.createdAt || '',
+      }));
+      sections.push('Users');
+      sections.push(generateCSV(userHeaders, userRows));
+    }
+
+    if (catches && catches.length) {
+      const catchHeaders = ['id', 'fish_name', 'quantity', 'price', 'location', 'created_at'];
+      const catchRows = catches.map(c => ({
+        id: c.id,
+        fish_name: c.fish_name,
+        quantity: c.quantity,
+        price: c.price,
+        location: c.location || '',
+        created_at: c.created_at || c.catch_date || '',
+      }));
+      sections.push('Catches');
+      sections.push(generateCSV(catchHeaders, catchRows));
+    }
+
+    if (orders && orders.length) {
+      const orderHeaders = ['id', 'user_id', 'total_price', 'status', 'created_at'];
+      const orderRows = orders.map(o => ({
+        id: o.id,
+        user_id: o.user_id || o.userId || '',
+        total_price: o.total_price || o.totalPrice || 0,
+        status: o.status || '',
+        created_at: o.created_at || o.createdAt || '',
+      }));
+      sections.push('Orders');
+      sections.push(generateCSV(orderHeaders, orderRows));
+    }
+
+    if (!sections.length) {
+      alert('No data to generate report');
+      return;
+    }
+
+    const content = sections.join('\n\n');
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+    a.download = `marissync-report-${ts}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const totalRevenue = orders.reduce((sum, order) => sum + (Number(order.total_price) || 0), 0);
@@ -180,108 +266,163 @@ function AdminPanel() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-slate-900">Fleet Overview</h1>
-            <p className="text-slate-700 mt-1">Real-time monitoring</p>
+            <h1 className="text-4xl font-bold text-slate-900">Admin Dashboard</h1>
+            <p className="text-slate-700 mt-1">System overview and management</p>
           </div>
-          <button className="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-slate-800">
+          <button onClick={generateReport} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-slate-800">
             📥 Generate Report
           </button>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-md">
-            <p className="text-slate-500 text-sm font-semibold">TOTAL USERS</p>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-bold text-slate-900">{users.length}</span>
-              <span className="text-green-500 text-sm">+{users.length > 0 ? Math.floor(Math.random() * 20) + 5 : 0}%</span>
-            </div>
-            <div className="h-1 bg-cyan-500 rounded-full mt-3"></div>
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <p className="text-slate-500 text-xs font-semibold uppercase">Total Users</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{users.length}</p>
+            <p className="text-slate-600 text-xs mt-3">Active accounts</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-md">
-            <p className="text-slate-500 text-sm font-semibold">TOTAL CATCHES</p>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-bold text-slate-900">{catches.length}</span>
-              <span className="text-green-500 text-sm">+{catches.length > 0 ? Math.floor(Math.random() * 15) + 3 : 0}%</span>
-            </div>
-            <div className="h-1 bg-cyan-500 rounded-full mt-3"></div>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <p className="text-slate-500 text-xs font-semibold uppercase">Total Fishermen</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{users.filter(u => u.role === 'fisherman').length}</p>
+            <p className="text-slate-600 text-xs mt-3">Registered suppliers</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-md">
-            <p className="text-slate-500 text-sm font-semibold">TOTAL REVENUE</p>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-bold text-slate-900">
-                ${catches.reduce((total, catch_) => total + (catch_.quantity * catch_.price), 0).toLocaleString()}
-              </span>
-              <span className="text-green-500 text-sm">+{catches.length > 0 ? Math.floor(Math.random() * 25) + 10 : 0}%</span>
-            </div>
-            <div className="h-1 bg-cyan-500 rounded-full mt-3"></div>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <p className="text-slate-500 text-xs font-semibold uppercase">Total Buyers</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{users.filter(u => u.role === 'customer').length}</p>
+            <p className="text-slate-600 text-xs mt-3">Active customers</p>
+          </div>
+
+          <div className="bg-slate-900 rounded-2xl p-6 shadow-md">
+            <p className="text-slate-400 text-xs font-semibold uppercase">Total Revenue</p>
+            <p className="text-3xl font-bold text-white mt-2">${orders.reduce((sum, o) => sum + (o.total_price || 0), 0).toLocaleString()}</p>
+            <p className="text-slate-400 text-xs mt-3">From all orders</p>
+          </div>
+        </div>
+
+        {/* Secondary Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <p className="text-slate-500 text-xs font-semibold uppercase">Total Catches</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{catches.length}</p>
+            <p className="text-slate-600 text-xs mt-3">Listings in system</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <p className="text-slate-500 text-xs font-semibold uppercase">Total Orders</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{orders.length}</p>
+            <p className="text-slate-600 text-xs mt-3">All transactions</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <p className="text-slate-500 text-xs font-semibold uppercase">Pending Orders</p>
+            <p className="text-3xl font-bold text-orange-600 mt-2">{orders.filter(o => o.status === 'pending').length}</p>
+            <p className="text-slate-600 text-xs mt-3">Awaiting fulfillment</p>
           </div>
         </div>
 
         {/* Charts Section */}
         <div className="grid grid-cols-3 gap-6 mb-8">
           {/* Sales Analytics */}
-          <div className="col-span-2 bg-white rounded-2xl p-6 shadow-md">
+          <div className="col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-semibold text-slate-900">Sales Analytics</h2>
-              <select className="text-sm border border-slate-300 rounded px-3 py-1 text-slate-600">
-                <option>Last 7 Days</option>
-                <option>Last 30 Days</option>
-              </select>
+              <h2 className="text-lg font-semibold text-slate-900">Revenue Analytics (Last 7 Days)</h2>
             </div>
 
-            {/* Simple Chart */}
+            {/* Revenue Chart */}
             <div className="flex items-end justify-around h-48 gap-2">
-              {salesData.map((data) => (
-                <div key={data.day} className="flex flex-col items-center">
-                  <div
-                    className="bg-gradient-to-t from-cyan-400 to-cyan-300 rounded-t w-12"
-                    style={{ height: `${(data.sales / 4000) * 150}px` }}
-                  ></div>
-                  <p className="text-xs text-slate-600 mt-2">{data.day}</p>
-                </div>
-              ))}
+              {salesData.length > 0 ? (
+                salesData.map((data, idx) => {
+                  const maxRevenue = Math.max(...salesData.map(d => d.sales), 1);
+                  return (
+                    <div key={idx} className="flex flex-col items-center flex-1">
+                      <div
+                        className="bg-gradient-to-t from-cyan-400 to-cyan-300 rounded-t w-full"
+                        style={{ height: `${(data.sales / maxRevenue) * 150}px`, minHeight: '10px' }}
+                        title={`${data.day}: $${data.sales.toFixed(0)}`}
+                      ></div>
+                      <p className="text-xs text-slate-600 mt-2">{data.day}</p>
+                      <p className="text-xs text-slate-500">${(data.sales / 1000).toFixed(1)}k</p>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-slate-500 text-center w-full">No revenue data available</p>
+              )}
             </div>
           </div>
 
-          {/* Recent Activity */}
-          <div className="bg-white rounded-2xl p-6 shadow-md">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Activity</h2>
+          {/* System Activity */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">System Activity</h2>
             <div className="space-y-4">
-              {orders.slice(0, 4).map((order) => (
-                <div key={order.id} className="flex gap-3 pb-3 border-b border-slate-200 last:border-b-0">
-                  <span className="text-xl">🛒</span>
-                  <div className="flex-1 text-sm">
-                    <p className="font-semibold text-slate-900">Order #{order.id}</p>
-                    <p className="text-slate-500 text-xs">{order.status || 'pending'} • ${order.total_price.toFixed(2)}</p>
-                  </div>
+              <div className="flex gap-3 pb-3 border-b border-slate-200">
+                <span className="text-2xl">👥</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-900 text-sm">Total Users</p>
+                  <p className="text-slate-500 text-xs">{users.length} registered</p>
                 </div>
-              ))}
-              {orders.length === 0 && (
-                <p className="text-slate-500 text-sm">No recent orders yet.</p>
-              )}
+              </div>
+              <div className="flex gap-3 pb-3 border-b border-slate-200">
+                <span className="text-2xl">🎣</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-900 text-sm">Active Fishermen</p>
+                  <p className="text-slate-500 text-xs">{users.filter(u => u.role === 'fisherman').length} suppliers</p>
+                </div>
+              </div>
+              <div className="flex gap-3 pb-3 border-b border-slate-200">
+                <span className="text-2xl">📦</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-900 text-sm">Pending Orders</p>
+                  <p className="text-slate-500 text-xs">{orders.filter(o => o.status === 'pending').length} awaiting</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-2xl">✅</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-900 text-sm">Completed Orders</p>
+                  <p className="text-slate-500 text-xs">{orders.filter(o => ['completed', 'delivered'].includes(o.status)).length} delivered</p>
+                </div>
+              </div>
             </div>
-            <button className="w-full mt-4 text-cyan-600 text-sm font-semibold hover:text-cyan-700">
-              View All Activity →
-            </button>
           </div>
         </div>
 
         {/* User Management Table */}
-        <div className="bg-white rounded-2xl p-6 shadow-md">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-semibold text-slate-900">User Management</h2>
             <div className="flex gap-3">
               <input
                 type="text"
-                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name or email..."
                 className="px-4 py-2 border border-slate-300 rounded-lg text-sm"
               />
-              <button className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                🔽 Filter
-              </button>
+
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+              >
+                <option value="all">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="fisherman">Fisherman</option>
+                <option value="customer">Customer</option>
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="suspended">Suspended</option>
+              </select>
             </div>
           </div>
 
@@ -292,18 +433,39 @@ function AdminPanel() {
                   <th className="text-left py-3 px-4 font-semibold text-slate-900">USER</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900">ROLE</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900">STATUS</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">RECENT ACTIVITY</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
-                {users.length > 0 ? (
-                  users.map((user) => (
+                {users.filter((user) => {
+                  const q = searchTerm.trim().toLowerCase();
+                  if (q) {
+                    const name = (user.name || '').toLowerCase();
+                    const email = (user.email || '').toLowerCase();
+                    if (!name.includes(q) && !email.includes(q)) return false;
+                  }
+                  if (roleFilter !== 'all' && (user.role || '').toLowerCase() !== roleFilter) return false;
+                  if (statusFilter !== 'all' && (user.status || 'active').toLowerCase() !== statusFilter) return false;
+                  return true;
+                }).length > 0 ? (
+                  users
+                    .filter((user) => {
+                      const q = searchTerm.trim().toLowerCase();
+                      if (q) {
+                        const name = (user.name || '').toLowerCase();
+                        const email = (user.email || '').toLowerCase();
+                        if (!name.includes(q) && !email.includes(q)) return false;
+                      }
+                      if (roleFilter !== 'all' && (user.role || '').toLowerCase() !== roleFilter) return false;
+                      if (statusFilter !== 'all' && (user.status || 'active').toLowerCase() !== statusFilter) return false;
+                      return true;
+                    })
+                    .map((user) => (
                     <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">
-                            {user.name.charAt(0)}
+                            {user.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <p className="font-semibold text-slate-900">{user.name}</p>
@@ -311,14 +473,29 @@ function AdminPanel() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-4 capitalize">{user.role}</td>
-                      <td className="py-4 px-4">
-                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-700">
-                          {user.status || 'Active'}
+                      <td className="py-4 px-4 capitalize">
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                          {user.role}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-slate-600">---</td>
                       <td className="py-4 px-4">
+                        <select
+                          value={user.status || 'active'}
+                          onChange={(e) => handleUserStatusChange(user.id, e.target.value)}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer ${
+                            user.status === 'active' || !user.status
+                              ? 'bg-green-100 text-green-700'
+                              : user.status === 'inactive'
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                          <option value="suspended">Suspended</option>
+                        </select>
+                      </td>
+                      <td className="py-4 px-4 space-x-2">
                         <button
                           onClick={() => handleDeleteUser(user.id)}
                           className="text-red-500 hover:text-red-700 text-sm font-semibold"
@@ -330,7 +507,7 @@ function AdminPanel() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5" className="py-8 text-center text-slate-500">
+                    <td colSpan="4" className="py-8 text-center text-slate-500">
                       {error || 'No users found'}
                     </td>
                   </tr>
@@ -338,17 +515,9 @@ function AdminPanel() {
               </tbody>
             </table>
           </div>
-
-          {users.length > 0 && (
-            <div className="mt-4 flex justify-between items-center text-xs text-slate-600">
-              <p>Showing 1-{users.length} of {users.length} users</p>
-              <div className="flex gap-2">
-                <button className="px-2 py-1 rounded hover:bg-slate-100">←</button>
-                <button className="px-2 py-1 rounded hover:bg-slate-100">→</button>
-              </div>
-            </div>
-          )}
         </div>
+
+        {error && <p className="mt-8 text-sm text-red-600">{error}</p>}
       </main>
     </div>
   );

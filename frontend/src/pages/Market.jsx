@@ -15,6 +15,19 @@ function Market() {
   const [location, setLocation] = useState('Global Markets');
   const [freshness, setFreshness] = useState('All');
   const [sortBy, setSortBy] = useState('Recent');
+  // PDF viewer state
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfModalUrl, setPdfModalUrl] = useState(null);
+
+  const openPdfViewer = (url) => {
+    setPdfModalUrl(url);
+    setShowPdfModal(true);
+  };
+
+  const closePdfViewer = () => {
+    setPdfModalUrl(null);
+    setShowPdfModal(false);
+  }; 
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
   const isAuthenticated = !!localStorage.getItem('fisher_token');
@@ -361,8 +374,36 @@ function Market() {
           {filteredCatches.length > 0 ? (
             filteredCatches.map(catchItem => (
               <div key={catchItem.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="relative h-48 bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center">
-                  <span className="text-6xl">{catchItem.icon || '🐟'}</span>
+                <div className="relative h-48 bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center overflow-hidden">
+                  {catchItem.image ? (
+                    // If PDF, show a small PDF preview area with a button to open full viewer
+                    (catchItem.image.toLowerCase().endsWith('.pdf') ? (
+                      <>
+                        <object
+                          data={catchItem.image}
+                          type="application/pdf"
+                          className="w-full h-full"
+                          aria-label="PDF preview"
+                        />
+                        <button
+                          onClick={() => openPdfViewer(catchItem.image)}
+                          className="absolute bottom-2 left-2 bg-white/90 text-slate-800 px-3 py-1 rounded-md text-sm shadow"
+                        >
+                          View PDF
+                        </button>
+                      </>
+                    ) : (
+                      // Image URL (jpg/png/svg) — render as background-fit
+                      <img
+                        src={catchItem.image}
+                        alt={catchItem.fish_name}
+                        className="w-full h-full object-cover"
+                      />
+                    ))
+                  ) : (
+                    <span className="text-6xl">{catchItem.icon || '🐟'}</span>
+                  )}
+
                   <button
                     onClick={() => addToCart(catchItem)}
                     className="absolute top-2 right-2 w-10 h-10 bg-white rounded-full shadow-md hover:bg-cyan-50 flex items-center justify-center"
@@ -486,6 +527,23 @@ function Market() {
             >
               Place Order
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Viewer Modal */}
+      {showPdfModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white w-full h-full max-w-4xl max-h-[90vh] rounded-lg overflow-hidden relative">
+            <div className="p-3 border-b flex justify-between items-center">
+              <h3 className="font-semibold">PDF Preview</h3>
+              <button onClick={closePdfViewer} className="text-slate-600 px-3 py-1 rounded hover:bg-slate-100">Close</button>
+            </div>
+            <div className="h-[calc(100%-56px)]">
+              <object data={pdfModalUrl} type="application/pdf" className="w-full h-full">
+                <iframe src={pdfModalUrl} className="w-full h-full" title="PDF Preview" />
+              </object>
+            </div>
           </div>
         </div>
       )}

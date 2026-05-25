@@ -14,9 +14,10 @@ function Login() {
 
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { token, role } = response.data;
+      const { token, role, userId } = response.data;
       localStorage.setItem('fisher_token', token);
       localStorage.setItem('fisher_role', role);
+      localStorage.setItem('fisher_user_id', userId);
       navigate(role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');

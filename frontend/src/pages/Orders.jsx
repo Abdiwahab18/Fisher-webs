@@ -1,79 +1,99 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import Market from './Market';
 
 function Orders() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
+  const isAdmin = userRole === 'admin';
+  const isFisherman = userRole === 'fisherman';
+  const canManageOrders = isAdmin || isFisherman;
 
-  const [recentTransactions] = useState([
-    {
-      id: '#ORD-0921',
-      date: 'Today, 08:42 AM',
-      product: 'Bluefin Tuna',
-      weight: '450kg • Grade A',
-      counterparty: 'Seafood Globe Ltd.',
-      location: 'Tokyo • 19:30',
-      status: 'Pending',
-      price: '$12,450.00',
-      icon: '🐟',
-    },
-    {
-      id: '#ORD-0918',
-      date: 'Yesterday, 06:15',
-      product: 'Pacific King Prawns',
-      weight: '175kg • Export Grade',
-      counterparty: 'Oceanic Wholesale',
-      location: 'Suez • Fleet Qd.',
-      status: 'Delivered',
-      price: '$8,920.50',
-      icon: '🦐',
-    },
-    {
-      id: '#ORD-0915',
-      date: 'Oct 24, 2023',
-      product: 'Atlantic Mackerel',
-      weight: '800kg • Frozen',
-      counterparty: 'Norwegian Cold Storage',
-      location: '50 yrs • Oslo Port',
-      status: 'Shipped',
-      price: '$15,200.00',
-      icon: '🐟',
-    },
-  ]);
-
-  const [stats] = useState({
-    totalVolume: '$248,500',
-    volumeChange: '+12.5% this month',
-    pendingOrders: '14',
-    pendingNote: 'Requires verification',
-    inTransit: '08',
-    transitNote: 'GPS-tracked fleet',
-    activeFleet: '22',
-  });
+  const pageTitle = canManageOrders ? 'Catch Orders' : 'Your Orders';
+  const pageSubtitle = canManageOrders
+    ? 'View all orders that include your catches, and update the status as you fulfill them.'
+    : 'Track the orders you placed in the market.';
 
   useEffect(() => {
     async function loadOrders() {
       try {
-        const response = await api.get('/orders');
-        setOrders(response.data || []);
+        const endpoint = canManageOrders ? '/orders' : '/orders/my-orders';
+        const response = await api.get(endpoint);
+
+        const rawOrders = (response.data || []).map((item) => ({
+          ...item,
+          total_price: Number(item.total_price) || 0,
+          status: item.status || 'pending',
+        }));
+
+        const ordersWithItems = await Promise.all(
+          rawOrders.map(async (order) => {
+            try {
+              const itemsRes = await api.get(`/orders/${order.id}/items`);
+              return {
+                ...order,
+                items: itemsRes.data || [],
+              };
+            } catch {
+              return {
+                ...order,
+                items: [],
+              };
+            }
+          })
+        );
+
+        setOrders(ordersWithItems);
       } catch (err) {
         setError('Unable to load orders.');
+        console.error(err);
       }
     }
 
     loadOrders();
-  }, []);
+  }, [canManageOrders]);
 
   const handleLogout = () => {
     localStorage.removeItem('fisher_token');
     localStorage.removeItem('fisher_role');
     navigate('/login');
   };
+
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    try {
+      const response = await api.patch(`/orders/${orderId}/status`, { status: newStatus });
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.id === orderId ? { ...order, status: response.data.status } : order
+        )
+      );
+    } catch (err) {
+      setError('Unable to update order status.');
+      console.error(err);
+    }
+  };
+
+  const filteredOrders = orders.filter((order) => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return true;
+
+    const orderIdMatches = String(order.id).toLowerCase().includes(term);
+    const statusMatches = order.status?.toLowerCase().includes(term);
+    const itemMatches = order.items?.some((item) =>
+      item.fish_name?.toLowerCase().includes(term)
+    );
+    const userIdMatches = String(order.user_id).toLowerCase().includes(term);
+
+    return orderIdMatches || statusMatches || itemMatches || userIdMatches;
+  });
+
+  const totalOrders = orders.length;
+  const pendingOrders = orders.filter((order) => order.status?.toLowerCase() === 'pending').length;
+  const completedOrders = orders.filter((order) => ['delivered', 'completed'].includes(order.status?.toLowerCase())).length;
+  const totalRevenue = orders.reduce((total, order) => total + (Number(order.total_price) || 0), 0).toFixed(2);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 flex">
@@ -191,10 +211,13 @@ function Orders() {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900">Orders</h1>
-          <p className="text-slate-600 mt-2">
-            Track, manage, and verify all maritime commerce transactions across your fleet and partners.
-          </p>
+          <h1 className="text-4xl font-bold text-slate-900">{pageTitle}</h1>
+          <p className="text-slate-600 mt-2">{pageSubtitle}</p>
+          {isFisherman && (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              Only orders containing your own catch listings are shown here.
+            </div>
+          )}
         </div>
 
         {/* Search and Filter */}
@@ -202,7 +225,9 @@ function Orders() {
           <div className="flex-1 relative">
             <input
               type="text"
-              placeholder="Search orders..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search orders by ID, item, status, or customer..."
               className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm"
             />
             <span className="absolute right-3 top-2.5 text-slate-400">🔍</span>
@@ -215,43 +240,34 @@ function Orders() {
         {/* Stats Cards */}
         <div className="grid grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <p className="text-slate-500 text-xs font-semibold uppercase">Total Volume</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">{stats.totalVolume}</p>
-            <p className="text-green-600 text-xs font-semibold mt-3">{stats.volumeChange}</p>
+            <p className="text-slate-500 text-xs font-semibold uppercase">Total Orders</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{totalOrders}</p>
+            <p className="text-slate-600 text-xs mt-3">Orders recorded in your account</p>
           </div>
 
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <p className="text-slate-500 text-xs font-semibold uppercase">Pending Orders</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">{stats.pendingOrders}</p>
-            <p className="text-slate-600 text-xs mt-3">{stats.pendingNote}</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{pendingOrders}</p>
+            <p className="text-slate-600 text-xs mt-3">Awaiting fulfillment or approval</p>
           </div>
 
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <p className="text-slate-500 text-xs font-semibold uppercase">In Transit</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">{stats.inTransit}</p>
-            <p className="text-slate-600 text-xs mt-3">{stats.transitNote}</p>
+            <p className="text-slate-500 text-xs font-semibold uppercase">Completed Orders</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{completedOrders}</p>
+            <p className="text-slate-600 text-xs mt-3">Orders marked delivered or completed</p>
           </div>
 
           <div className="bg-slate-900 rounded-2xl p-6 shadow-md">
-            <p className="text-slate-400 text-xs font-semibold uppercase">Active Fleet</p>
-            <div className="flex items-center justify-between mt-3">
-              <p className="text-3xl font-bold text-white">{stats.activeFleet}</p>
-              <div className="flex -space-x-2">
-                <div className="w-8 h-8 rounded-full bg-cyan-400 border-2 border-slate-900"></div>
-                <div className="w-8 h-8 rounded-full bg-blue-400 border-2 border-slate-900"></div>
-                <div className="w-8 h-8 rounded-full bg-teal-400 border-2 border-slate-900"></div>
-                <div className="w-8 h-8 rounded-full bg-slate-600 border-2 border-slate-900 flex items-center justify-center text-white text-xs">
-                  +8
-                </div>
-              </div>
-            </div>
+            <p className="text-slate-400 text-xs font-semibold uppercase">Revenue</p>
+            <p className="text-3xl font-bold text-white mt-2">${totalRevenue}</p>
+            <p className="text-slate-400 text-xs mt-3">Real totals from recorded orders</p>
           </div>
         </div>
 
-        {/* Recent Transactions */}
+        {/* Recent Orders */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 mb-8">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-900">Recent Transactions</h2>
+            <h2 className="text-xl font-bold text-slate-900">Recent Orders</h2>
             <div className="flex gap-2">
               <button className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50">
                 Export CSV
@@ -275,8 +291,8 @@ function Orders() {
                 </tr>
               </thead>
               <tbody>
-                {orders.length > 0 ? (
-                  orders.map((order) => (
+                {filteredOrders.length > 0 ? (
+                  filteredOrders.map((order) => (
                     <tr key={order.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="py-4 px-4">
                         <div>
@@ -285,9 +301,13 @@ function Orders() {
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">📦</span>
-                          <span className="font-semibold text-slate-900">Order #{order.id}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-slate-900">
+                            {order.items?.[0]?.fish_name || 'Mixed catch'}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {order.items?.length > 1 ? `${order.items.length} items` : '1 item'}
+                          </span>
                         </div>
                       </td>
                       <td className="py-4 px-4">
@@ -299,26 +319,48 @@ function Orders() {
                       <td className="py-4 px-4">
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            order.status === 'delivered'
+                            order.status === 'delivered' || order.status === 'completed'
                               ? 'bg-green-100 text-green-700'
                               : order.status === 'pending'
                               ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-blue-100 text-blue-700'
+                              : order.status === 'processing'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-slate-100 text-slate-600'
                           }`}
                         >
                           {order.status}
                         </span>
                       </td>
                       <td className="py-4 px-4 font-semibold text-slate-900">${order.total_price}</td>
-                      <td className="py-4 px-4">
-                        <button className="text-slate-400 hover:text-slate-600">👁️</button>
+                      <td className="py-4 px-4 flex items-center gap-2">
+                        {canManageOrders && order.status?.toLowerCase() !== 'completed' && order.status?.toLowerCase() !== 'delivered' ? (
+                          <>
+                            {order.status?.toLowerCase() === 'pending' ? (
+                              <button
+                                onClick={() => handleStatusUpdate(order.id, 'processing')}
+                                className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-yellow-200"
+                              >
+                                Accept Order
+                              </button>
+                            ) : order.status?.toLowerCase() === 'processing' ? (
+                              <button
+                                onClick={() => handleStatusUpdate(order.id, 'completed')}
+                                className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold hover:bg-green-200"
+                              >
+                                Complete Order
+                              </button>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-slate-500 text-xs">No actions</span>
+                        )}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td colSpan="6" className="py-8 text-center text-slate-500">
-                      No orders found. Orders will appear here once customers place them.
+                      No orders found. This page only shows orders you can access.
                     </td>
                   </tr>
                 )}
@@ -328,7 +370,7 @@ function Orders() {
 
           {/* Pagination */}
           <div className="mt-6 flex justify-between items-center">
-            <p className="text-xs text-slate-600">Showing 1-{orders.length} of {orders.length} orders</p>
+            <p className="text-xs text-slate-600">Showing 1-{filteredOrders.length} of {orders.length} orders</p>
             <div className="flex gap-1">
               <button className="px-2 py-1 rounded border border-slate-300 text-sm hover:bg-slate-50">
                 ←

@@ -37,10 +37,15 @@ export async function login(req, res) {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
+  // Check if user status is active
+  if (user.status && user.status !== 'active') {
+    return res.status(403).json({ message: 'Your account is ' + user.status + '. Please contact administrator.' });
+  }
+
   const payload = { id: user.id, role: user.role, name: user.name };
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: process.env.TOKEN_EXPIRES_IN || '1h',
   });
 
-  res.json({ token, role: user.role });
+  res.json({ token, role: user.role, userId: user.id });
 }

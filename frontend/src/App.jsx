@@ -1,8 +1,13 @@
 import { Route, Routes, Navigate } from 'react-router-dom';
+import { NotificationProvider } from './context/NotificationContext';
+import { NotificationContainer } from './components/NotificationContainer';
+import { useWebSocket } from './hooks/useWebSocket';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import Notifications from './pages/Notifications';
+import AdminActivity from './pages/AdminActivity';
 import AdminPanel from './pages/AdminPanel';
 import Orders from './pages/Orders';
 import CustomerShop from './pages/CustomerShop';
@@ -11,9 +16,12 @@ import Market from './pages/Market';
 import Settings from './pages/Settings';
 import ProtectedRoute from './routes/ProtectedRoute';
 
-function App() {
+function AppContent() {
+  useWebSocket();
+
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
+    <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <NotificationContainer />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -79,10 +87,38 @@ function App() {
           }
         />
 
+        {/* Admin activity (admin only) */}
+        <Route
+          path="/admin/activity"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminActivity />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Notifications - authenticated users */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <Notifications />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Market - Public (no auth required) */}
         <Route path="/market" element={<Market />} />
       </Routes>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <NotificationProvider>
+      <AppContent />
+    </NotificationProvider>
   );
 }
 
