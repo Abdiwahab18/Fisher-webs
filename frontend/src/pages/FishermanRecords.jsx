@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import Layout from '../components/Layout';
 
 function FishermanRecords() {
   const [catches, setCatches] = useState([]);
@@ -55,8 +56,36 @@ function FishermanRecords() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, image: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (parseFloat(formData.quantity) <= 0) {
+      setError('Quantity must be greater than 0.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    if (formData.weight && parseFloat(formData.weight) <= 0) {
+      setError('Weight must be greater than 0.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    if (parseFloat(formData.price) <= 0) {
+      setError('Price must be greater than 0.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
     try {
       if (editingId) {
         // Update existing catch
@@ -113,94 +142,12 @@ function FishermanRecords() {
   const activeCatches = catches.filter(c => c.status !== 'sold').length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 flex">
-      {/* Sidebar */}
-      <aside className="w-40 bg-slate-700 text-white p-6 shadow-xl flex flex-col">
-        <h2 className="text-xl font-bold mb-8">MarisSync</h2>
-
-        <nav className="space-y-1 mb-8 flex-1">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-          >
-            <span>📊</span>
-            <span>Dashboard</span>
-          </button>
-          <button
-            onClick={() => navigate('/fisherman')}
-            className="flex items-center gap-3 px-4 py-2 rounded bg-cyan-600 text-white w-full text-left text-sm"
-          >
-            <span>🎣</span>
-            <span>Catches</span>
-          </button>
-          <button
-            onClick={() => navigate('/market')}
-            className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-          >
-            <span>🛍️</span>
-            <span>Market</span>
-          </button>
-          <button
-            onClick={() => navigate('/orders')}
-            className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-          >
-            <span>📦</span>
-            <span>Orders</span>
-          </button>
-          {userRole === 'admin' && (
-            <button
-              onClick={() => navigate('/admin')}
-              className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-            >
-              <span>👨‍💼</span>
-              <span>Admin Panel</span>
-            </button>
-          )}
-          <button
-            onClick={() => navigate('/settings')}
-            className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-          >
-            <span>⚙️</span>
-            <span>Settings</span>
-          </button>
-        </nav>
-
-        <div className="mb-6 border-t border-slate-600 pt-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-semibold">
-              F
-            </div>
-            <div>
-              <p className="font-semibold text-sm">Fisherman</p>
-              <p className="text-xs text-slate-400">User</p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            className="w-full bg-cyan-500 text-slate-900 font-semibold py-2 rounded-lg text-sm hover:bg-cyan-400"
-          >
-            + Log Catch
-          </button>
-        </div>
-
-        <button
-          onClick={handleLogout}
-          className="w-full text-slate-300 hover:text-white text-sm text-left px-4 py-2 rounded hover:bg-slate-600"
-        >
-          🚪 Logout
-        </button>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 p-8 overflow-auto">
+    <Layout activePage="catches" className="bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
+      <div className="p-4 md:p-8 w-full">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900">Catch Records</h1>
-          <p className="text-slate-600 mt-2">
+          <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100">Catch Records</h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-2">
             Track your catches, manage inventory, and monitor sales performance.
           </p>
         </div>
@@ -219,129 +166,133 @@ function FishermanRecords() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <p className="text-slate-500 text-xs font-semibold uppercase">Total Catches</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">{catches.length}</p>
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm">
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Total Catches</p>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">{catches.length}</p>
             <p className="text-green-600 text-xs font-semibold mt-3">All time</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <p className="text-slate-500 text-xs font-semibold uppercase">Total Value</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">${totalValue.toFixed(2)}</p>
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm">
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Total Value</p>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">${totalValue.toFixed(2)}</p>
             <p className="text-green-600 text-xs font-semibold mt-3">Inventory</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <p className="text-slate-500 text-xs font-semibold uppercase">Total Weight</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm">
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Total Weight</p>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">
               {catches.reduce((sum, c) => sum + parseFloat(c.quantity || 0), 0).toFixed(1)} kg
             </p>
-            <p className="text-slate-600 text-xs mt-3">All catches</p>
+            <p className="text-slate-600 dark:text-slate-400 text-xs mt-3">All catches</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <p className="text-slate-500 text-xs font-semibold uppercase">Active Listings</p>
-            <p className="text-3xl font-bold text-slate-900 mt-2">{activeCatches}</p>
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm">
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Active Listings</p>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">{activeCatches}</p>
             <p className="text-cyan-600 text-xs font-semibold mt-3">Available</p>
           </div>
         </div>
 
         {/* Add/Edit Catch Form */}
         {showForm && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm mb-8 border-2 border-cyan-400">
-            <h2 className="text-xl font-bold text-slate-900 mb-4">
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm mb-8 border-2 border-cyan-400">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">
               {editingId ? 'Edit Catch' : 'Log New Catch'}
             </h2>
             <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Fish Species *</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Fish Species *</label>
+                <select
                   name="fish_name"
                   value={formData.fish_name}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700"
                   required
-                />
+                >
+                  <option value="">Select a species</option>
+                  <option value="Salmon">Salmon</option>
+                  <option value="Tuna">Tuna</option>
+                  <option value="Cod">Tarraqad</option>
+                  <option value="Mackerel">Mackerel</option>
+                  <option value="Snapper">Snapper</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Quantity (kg) *</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Quantity</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0.01"
                   name="quantity"
                   value={formData.quantity}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Weight (kg)</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Weight (kg)</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0.01"
                   name="weight"
                   value={formData.weight}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Price per kg ($) *</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Price per kg ($) *</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0.01"
                   name="price"
                   value={formData.price}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Location</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Location</label>
                 <input
                   type="text"
                   name="location"
                   value={formData.location}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Catch Date</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Catch Date</label>
                 <input
                   type="date"
                   name="catch_date"
+                  max={new Date().toISOString().split('T')[0]}
                   value={formData.catch_date}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300"
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Image URL (optional)</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Image Upload (optional)</label>
                 <input
-                  type="url"
-                  name="image"
-                  value={formData.image}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300"
                 />
+                {formData.image && (
+                  <div className="mt-4">
+                    <p className="text-sm text-slate-500 mb-2">Preview:</p>
+                    <img src={formData.image} alt="Preview" className="h-32 object-cover rounded-lg border border-slate-300 dark:border-slate-600" />
+                  </div>
+                )}
               </div>
-              <div className="col-span-2">
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500"
-                >
-                  <option value="listed">Listed</option>
-                  <option value="sold">Sold</option>
-                  <option value="pending">Pending</option>
-                </select>
-              </div>
+
               <div className="col-span-2 flex gap-4">
                 <button
                   type="submit"
@@ -355,7 +306,7 @@ function FishermanRecords() {
                     resetForm();
                     setShowForm(false);
                   }}
-                  className="bg-slate-300 text-slate-700 px-6 py-2 rounded-lg font-semibold hover:bg-slate-400"
+                  className="bg-slate-300 text-slate-700 dark:text-slate-300 px-6 py-2 rounded-lg font-semibold hover:bg-slate-400"
                 >
                   Cancel
                 </button>
@@ -367,9 +318,9 @@ function FishermanRecords() {
         {/* Delete Confirmation Modal */}
         {deleteConfirm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Catch?</h3>
-              <p className="text-slate-600 mb-6">
+            <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Delete Catch?</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-6">
                 Are you sure you want to delete this catch? This action cannot be undone.
               </p>
               <div className="flex gap-4">
@@ -381,7 +332,7 @@ function FishermanRecords() {
                 </button>
                 <button
                   onClick={() => setDeleteConfirm(null)}
-                  className="bg-slate-300 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-400 flex-1"
+                  className="bg-slate-300 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg font-semibold hover:bg-slate-400 flex-1"
                 >
                   Cancel
                 </button>
@@ -391,9 +342,9 @@ function FishermanRecords() {
         )}
 
         {/* Catches Table */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm">
+        <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-900">Your Catches</h2>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Your Catches</h2>
             <button
               onClick={() => {
                 resetForm();
@@ -407,22 +358,22 @@ function FishermanRecords() {
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-slate-200">
+              <thead className="border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">SPECIES</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">QUANTITY</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">WEIGHT</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">PRICE/KG</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">LOCATION</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">DATE</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">STATUS</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">ACTIONS</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">SPECIES</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">QUANTITY</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">WEIGHT</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">PRICE/KG</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">LOCATION</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">DATE</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">STATUS</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {catches.length > 0 ? (
                   catches.map((catch_) => (
-                    <tr key={catch_.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <tr key={catch_.id} className="border-b border-slate-100 hover:bg-slate-50 dark:bg-slate-900">
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           {catch_.image ? (
@@ -432,14 +383,14 @@ function FishermanRecords() {
                               {catch_.fish_name.charAt(0).toUpperCase()}
                             </div>
                           )}
-                          <span className="font-semibold text-slate-900">{catch_.fish_name}</span>
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">{catch_.fish_name}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-slate-700">{parseFloat(catch_.quantity).toFixed(2)} kg</td>
-                      <td className="py-4 px-4 text-slate-700">{catch_.weight ? parseFloat(catch_.weight).toFixed(2) : '---'} kg</td>
-                      <td className="py-4 px-4 text-slate-700 font-semibold">${parseFloat(catch_.price).toFixed(2)}</td>
-                      <td className="py-4 px-4 text-slate-700">{catch_.location || '---'}</td>
-                      <td className="py-4 px-4 text-slate-700">
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{parseFloat(catch_.quantity).toFixed(2)} kg</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.weight ? parseFloat(catch_.weight).toFixed(2) : '---'} kg</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300 font-semibold">${parseFloat(catch_.price).toFixed(2)}</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.location || '---'}</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">
                         {catch_.catch_date
                           ? new Date(catch_.catch_date).toLocaleDateString()
                           : new Date(catch_.created_at).toLocaleDateString()}
@@ -475,7 +426,7 @@ function FishermanRecords() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="8" className="py-8 text-center text-slate-500">
+                    <td colSpan="8" className="py-8 text-center text-slate-500 dark:text-slate-400">
                       No catches recorded yet. Click "Add Catch" to get started.
                     </td>
                   </tr>
@@ -484,8 +435,8 @@ function FishermanRecords() {
             </table>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 }
 

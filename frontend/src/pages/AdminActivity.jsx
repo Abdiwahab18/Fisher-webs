@@ -66,13 +66,13 @@ export default function AdminActivity() {
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
       <div className="space-y-3">
-        {activity.length === 0 && <p className="text-sm text-slate-500">No activity found.</p>}
+        {activity.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No activity found.</p>}
         {activity.map((item) => (
-          <div key={item.id} className="bg-white p-4 rounded shadow-sm">
+          <div key={item.id} className="bg-white dark:bg-slate-800 dark:text-slate-100 p-4 rounded shadow-sm">
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-semibold">{item.title}</p>
-                <p className="text-xs text-slate-500 mt-1">{item.subtitle}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{item.subtitle}</p>
               </div>
               <div className="text-xs text-slate-400">{new Date(item.time).toLocaleString()}</div>
             </div>

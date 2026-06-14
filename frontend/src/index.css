@@ -43,7 +43,12 @@ body {
   @apply bg-slate-950 text-slate-100;
 }
 
-button,
-input {
+button {
   @apply outline-none;
+}
+
+input,
+select,
+textarea {
+  @apply outline-none bg-white dark:bg-slate-900 dark:text-slate-100;
 }

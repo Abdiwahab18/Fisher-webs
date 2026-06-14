@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
+import pool from '../config/db.js';
 import {
   createOrder,
   getOrdersByUser,
@@ -9,7 +10,10 @@ import {
   getOrdersByFisherman,
   isOrderOwnedByFisherman,
   createOrderItem,
-  getOrderItems
+  getOrderItems,
+  createNotification,
+  getFishCatchById,
+  reduceFishCatchQuantity
 } from '../models/userModel.js';
 
 const router = express.Router();
@@ -41,22 +45,37 @@ router.get('/my-orders', authenticateToken, async (req, res) => {
   }
 });
 
-// Create new order
+// Create new order with delivery details
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { total_price, items } = req.body;
+    const { total_price, items, delivery_info } = req.body;
 
     if (!total_price || !items || items.length === 0) {
       return res.status(400).json({ message: 'Total price and items are required' });
     }
 
-    // Create order
+    if (!delivery_info) {
+      return res.status(400).json({ message: 'Delivery/contact information is required' });
+    }
+
+    for (const item of items) {
+      const fishCatch = await getFishCatchById(item.fish_id);
+      if (!fishCatch) {
+        return res.status(404).json({ message: `Fish catch ${item.fish_id} not found` });
+      }
+      const available = Number(fishCatch.quantity) || 0;
+      if (item.quantity > available) {
+        return res.status(400).json({ message: `Only ${available} kg available for ${fishCatch.fish_name}` });
+      }
+    }
+
     const order = await createOrder({
       user_id: req.user.id,
-      total_price
+      total_price,
+      status: 'pending',
+      delivery_info
     });
 
-    // Create order items
     const orderItems = [];
     for (const item of items) {
       const orderItem = await createOrderItem({
@@ -66,20 +85,42 @@ router.post('/', authenticateToken, async (req, res) => {
         price: item.price
       });
       orderItems.push(orderItem);
+      await reduceFishCatchQuantity(item.fish_id, item.quantity);
     }
 
-    // Emit notification via WebSocket
+    await createNotification({
+      user_id: req.user.id,
+      message: `Your order #${order.id} has been placed and is pending confirmation.`,
+      is_read: false
+    });
+
     const io = req.app.get('io');
     if (io) {
+      let fishName = null;
+      let qty = null;
+      try {
+        if (items && items.length > 0) {
+          qty = items[0].quantity;
+          const res = await pool.query('SELECT fish_name FROM fish_catches WHERE id = $1', [items[0].fish_id]);
+          fishName = res.rows[0]?.fish_name || null;
+        }
+      } catch (e) {
+        console.warn('Failed to lookup fish name for websocket notification', e.message);
+      }
+
       io.to(`user:${req.user.id}`).emit('order-placed', {
         orderId: order.id,
         totalPrice: total_price,
-        itemCount: items.length
+        itemCount: items.length,
+        fish_name: fishName,
+        quantity: qty,
+        items
       });
     }
 
     res.status(201).json({ order, items: orderItems });
   } catch (error) {
+    console.error('Order creation error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -111,6 +152,12 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
 
     // Emit notification via WebSocket
     const io = req.app.get('io');
+    await createNotification({
+      user_id: updatedOrder.user_id,
+      message: `Order #${updatedOrder.id} status updated to ${updatedOrder.status}.`,
+      is_read: false
+    });
+
     if (io) {
       io.to(`user:${updatedOrder.user_id}`).emit('order-updated', {
         orderId: updatedOrder.id,

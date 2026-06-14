@@ -8,6 +8,8 @@ import userRoutes from './routes/users.js';
 import catchRoutes from './routes/catches.js';
 import orderRoutes from './routes/orders.js';
 import earningsRoutes from './routes/earnings.js';
+import notificationsRoutes from './routes/notifications.js';
+import paymentsRoutes from './routes/payments.js';
 import { migrate } from '../migrate.js';
 
 dotenv.config();
@@ -21,7 +23,13 @@ const io = new Server(httpServer, {
   }
 });
 
-app.use(cors());
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Make io accessible to routes
@@ -31,10 +39,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/catches', catchRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/notifications', notificationsRoutes);
 app.use('/api/earnings', earningsRoutes);
 
 app.get('/', (req, res) => {
-  res.json({ message: 'Fisher Web API is running' });
+  res.json({ message: 'FishMarket API is running' });
 });
 
 // WebSocket connection handling

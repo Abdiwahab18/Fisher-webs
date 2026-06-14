@@ -6,20 +6,25 @@ export async function findUserByEmail(email) {
 }
 
 export async function findUserById(id) {
-  const result = await pool.query('SELECT id, name, email, role, status FROM users WHERE id = $1', [id]);
+  const result = await pool.query('SELECT id, name, email, role, profile_picture, status FROM users WHERE id = $1', [id]);
   return result.rows[0];
 }
 
-export async function createUser({ name, email, password, role }) {
+export async function createUser({ name, email, password, role, profile_picture = null }) {
   const result = await pool.query(
-    'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
-    [name, email, password, role]
+    'INSERT INTO users (name, email, password, role, profile_picture) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, profile_picture',
+    [name, email, password, role, profile_picture]
   );
   return result.rows[0];
 }
 
 export async function getAllUsers() {
-  const result = await pool.query('SELECT id, name, email, role, status, created_at FROM users ORDER BY created_at DESC');
+  const result = await pool.query('SELECT id, name, email, role, profile_picture, status, created_at FROM users ORDER BY created_at DESC');
+  return result.rows;
+}
+
+export async function getUsersByRole(role) {
+  const result = await pool.query('SELECT id, name, email, role, profile_picture, status, created_at FROM users WHERE role = $1 ORDER BY created_at DESC', [role]);
   return result.rows;
 }
 
@@ -36,7 +41,7 @@ export async function updateUserStatus(id, status) {
   return result.rows[0];
 }
 
-export async function updateUserProfile(id, { name, email }) {
+export async function updateUserProfile(id, { name, email, profile_picture }) {
   const updates = [];
   const values = [];
   let paramCount = 1;
@@ -51,12 +56,17 @@ export async function updateUserProfile(id, { name, email }) {
     values.push(email);
   }
 
+  if (profile_picture !== undefined) {
+    updates.push(`profile_picture = $${paramCount++}`);
+    values.push(profile_picture);
+  }
+
   if (updates.length === 0) {
     return null;
   }
 
   values.push(id);
-  const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, name, email, role, status`;
+  const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, name, email, role, profile_picture, status`;
   const result = await pool.query(query, values);
   return result.rows[0];
 }
@@ -106,7 +116,8 @@ export async function getFishCatchesByUser(user_id) {
       fc.*,
       u.id AS fisherman_id,
       u.name AS fisherman_name,
-      u.email AS fisherman_email
+      u.email AS fisherman_email,
+      u.profile_picture AS fisherman_profile_picture
     FROM fish_catches fc
     LEFT JOIN users u ON fc.user_id = u.id
     WHERE fc.user_id = $1
@@ -122,7 +133,8 @@ export async function getAllFishCatches() {
       fc.*,
       u.id AS fisherman_id,
       u.name AS fisherman_name,
-      u.email AS fisherman_email
+      u.email AS fisherman_email,
+      u.profile_picture AS fisherman_profile_picture
     FROM fish_catches fc
     LEFT JOIN users u ON fc.user_id = u.id
     ORDER BY fc.created_at DESC`
@@ -181,6 +193,19 @@ export async function updateFishCatch(id, { fish_name, quantity, weight, price, 
   return result.rows[0];
 }
 
+export async function reduceFishCatchQuantity(id, quantity) {
+  const result = await pool.query(
+    `UPDATE fish_catches
+       SET quantity = GREATEST(quantity - $1, 0),
+           status = CASE WHEN quantity - $1 <= 0 THEN 'sold' ELSE status END,
+           updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2
+     RETURNING *`,
+    [quantity, id]
+  );
+  return result.rows[0];
+}
+
 export async function deleteFishCatch(id) {
   const result = await pool.query('DELETE FROM fish_catches WHERE id = $1 RETURNING *', [id]);
   return result.rows[0];
@@ -236,10 +261,10 @@ export async function getMonthlyEarnings(fisherman_id, months = 12) {
   );
   return result.rows;
 }
-export async function createOrder({ user_id, total_price, status = 'pending' }) {
+export async function createOrder({ user_id, total_price, status = 'pending', delivery_info = null, order_type = 'purchase' }) {
   const result = await pool.query(
-    'INSERT INTO orders (user_id, total_price, status) VALUES ($1, $2, $3) RETURNING *',
-    [user_id, total_price, status]
+    'INSERT INTO orders (user_id, total_price, status, delivery_info, order_type) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+    [user_id, total_price, status, delivery_info, order_type]
   );
   return result.rows[0];
 }
@@ -254,6 +279,38 @@ export async function getOrdersByUser(user_id) {
 
 export async function getAllOrders() {
   const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+  return result.rows;
+}
+
+export async function createNotification({ user_id, message, is_read = false }) {
+  const result = await pool.query(
+    'INSERT INTO notifications (user_id, message, is_read) VALUES ($1, $2, $3) RETURNING *',
+    [user_id, message, is_read]
+  );
+  return result.rows[0];
+}
+
+export async function getNotificationsByUser(user_id) {
+  const result = await pool.query(
+    'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC',
+    [user_id]
+  );
+  return result.rows;
+}
+
+export async function markNotificationRead(notification_id, user_id) {
+  const result = await pool.query(
+    'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2 RETURNING *',
+    [notification_id, user_id]
+  );
+  return result.rows[0];
+}
+
+export async function markAllNotificationsRead(user_id) {
+  const result = await pool.query(
+    'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 RETURNING *',
+    [user_id]
+  );
   return result.rows;
 }
 

@@ -36,7 +36,8 @@ export function useWebSocket() {
     });
 
     socketRef.current.on('order-updated', (data) => {
-      info(`Order status: ${data.status}`);
+      const statusLabel = data.status || 'updated';
+      info(`Order status: ${statusLabel}`);
     });
 
     socketRef.current.on('catch-added', (data) => {

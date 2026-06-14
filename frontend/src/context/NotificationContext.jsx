@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import api from '../api/axiosConfig';
 
 const NotificationContext = createContext();
 
@@ -18,11 +19,30 @@ export function NotificationProvider({ children }) {
     }
   }, []);
 
+  useEffect(() => {
+    async function loadNotifications() {
+      try {
+        const token = localStorage.getItem('fisher_token');
+        if (!token) return;
+        const response = await api.get('/notifications');
+        setNotificationsHistory(response.data || []);
+      } catch (err) {
+        console.error('Unable to load saved notifications', err);
+      }
+    }
+
+    loadNotifications();
+  }, []);
+
   const updateNotificationsEnabled = useCallback((enabled) => {
     setNotificationsEnabled(enabled);
     try { localStorage.setItem('fisher_notifications_enabled', String(enabled)); } catch (e) {
       // ignore storage write errors
     }
+  }, []);
+
+  const removeNotification = useCallback((id) => {
+    setNotifications(prev => prev.filter(notif => notif.id !== id));
   }, []);
 
   const addNotification = useCallback((message, type = 'info', duration = 5000) => {
@@ -31,11 +51,10 @@ export function NotificationProvider({ children }) {
     const notification = { id, message, type };
     
     setNotifications(prev => [...prev, notification]);
-    setNotificationsHistory(prev => {
-      const next = [...prev, { ...notification, time: new Date().toISOString() }];
-      try { localStorage.setItem('fisher_notifications', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
+    setNotificationsHistory(prev => [
+      ...prev,
+      { ...notification, time: new Date().toISOString(), is_read: false }
+    ]);
     
     if (duration > 0) {
       setTimeout(() => {
@@ -44,24 +63,33 @@ export function NotificationProvider({ children }) {
     }
     
     return id;
-  }, []);
+  }, [notificationsEnabled, removeNotification]);
 
-  const removeNotification = useCallback((id) => {
-    setNotifications(prev => prev.filter(notif => notif.id !== id));
-  }, []);
-
-  const clearHistory = useCallback(() => {
-    setNotificationsHistory([]);
-    try { localStorage.removeItem('fisher_notifications'); } catch (e) {}
-  }, []);
-
-  useEffect(() => {
+  const markNotificationRead = useCallback(async (id) => {
     try {
-      const raw = localStorage.getItem('fisher_notifications');
-      if (raw) setNotificationsHistory(JSON.parse(raw));
-    } catch (e) {
-      // ignore
+      const token = localStorage.getItem('fisher_token');
+      if (token) {
+        await api.patch(`/notifications/${id}/read`);
+      }
+    } catch (err) {
+      console.warn('Failed to mark notification read', err);
     }
+    setNotificationsHistory(prev => prev.map((notif) => (
+      notif.id === id ? { ...notif, is_read: true } : notif
+    )));
+  }, []);
+
+  const clearHistory = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('fisher_token');
+      if (token) {
+        await api.patch('/notifications/read-all');
+      }
+    } catch (err) {
+      console.warn('Failed to mark all notifications as read', err);
+    }
+    setNotificationsHistory(prev => prev.map((notif) => ({ ...notif, is_read: true })));
+    try { localStorage.removeItem('fisher_notifications'); } catch (e) {}
   }, []);
 
   const success = useCallback((message, duration = 5000) => {
@@ -90,6 +118,7 @@ export function NotificationProvider({ children }) {
         addNotification,
         removeNotification,
         clearHistory,
+        markNotificationRead,
         success,
         error,
         warning,

@@ -17,9 +17,10 @@ export async function migrate() {
     // Add status column to users
     await pool.query(`
       ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active'
+      ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active',
+      ADD COLUMN IF NOT EXISTS profile_picture TEXT
     `);
-    console.log('✓ Status column added to users table');
+    console.log('✓ Status and profile_picture columns added to users table');
 
     // Add missing columns to fish_catches
     await pool.query(`
@@ -30,6 +31,24 @@ export async function migrate() {
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     `);
     console.log('✓ Weight, catch_date, status, and updated_at columns added to fish_catches table');
+
+    await pool.query(`
+      ALTER TABLE orders
+      ADD COLUMN IF NOT EXISTS delivery_info TEXT,
+      ADD COLUMN IF NOT EXISTS order_type VARCHAR(50) DEFAULT 'purchase'
+    `);
+    console.log('✓ Order metadata fields added to orders table');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✓ Notifications table created');
 
     console.log('✓ Migration completed successfully');
   } catch (error) {

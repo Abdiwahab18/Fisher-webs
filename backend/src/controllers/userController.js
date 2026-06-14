@@ -1,4 +1,4 @@
-import { findUserById, getAllUsers, deleteUserById, updateUserStatus, getSystemStats, getRevenueByDay, updateUserProfile } from '../models/userModel.js';
+import { findUserById, getAllUsers, getUsersByRole, deleteUserById, updateUserStatus, getSystemStats, getRevenueByDay, updateUserProfile } from '../models/userModel.js';
 
 export async function currentUser(req, res) {
   const user = await findUserById(req.user.id);
@@ -11,6 +11,11 @@ export async function currentUser(req, res) {
 export async function listUsers(req, res) {
   const users = await getAllUsers();
   res.json(users);
+}
+
+export async function listFishermen(req, res) {
+  const fishermen = await getUsersByRole('fisherman');
+  res.json(fishermen);
 }
 
 export async function deleteUser(req, res) {
@@ -45,14 +50,14 @@ export async function getRevenueAnalytics(req, res) {
 }
 
 export async function updateProfileController(req, res) {
-  const { name, email } = req.body;
+  const { name, email, profile_picture } = req.body;
   
-  if (!name && !email) {
+  if (!name && !email && profile_picture === undefined) {
     return res.status(400).json({ message: 'At least one field is required to update' });
   }
 
   try {
-    const updatedUser = await updateUserProfile(req.user.id, { name, email });
+    const updatedUser = await updateUserProfile(req.user.id, { name, email, profile_picture });
     if (!updatedUser) {
       return res.status(404).json({ message: 'User not found' });
     }

@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { useNotification } from '../context/NotificationContext';
 
+import Layout from '../components/Layout';
 function Dashboard() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
@@ -16,7 +17,7 @@ function Dashboard() {
   const [filterSpecies, setFilterSpecies] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterLocation, setFilterLocation] = useState('All');
-  const [earnings, setEarnings] = useState(null);
+  const [earnings, setEarnings] = useState({ total_earnings: 0 });
   const [earningsTrends, setEarningsTrends] = useState([]);
   const [favoriteCount, setFavoriteCount] = useState(0);
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ function Dashboard() {
           location: item.location || 'Unknown',
           time: new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           status: item.status || 'LISTED',
-          icon: '🐟',
+          // icon: '🐟',
         }));
 
       setRecentCatches(recent);
@@ -223,106 +224,20 @@ function Dashboard() {
   const maxValue = catchTrends.length ? Math.max(...catchTrends.map(d => d.value)) : 1;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-300 to-cyan-300 flex">
-      {/* Sidebar */}
-      <aside className="w-40 bg-slate-700 text-white p-6 shadow-xl flex flex-col">
-        <h2 className="text-xl font-bold mb-8">MarisSync</h2>
-        
-        <nav className="space-y-1 mb-8 flex-1">
-          <div className="flex items-center gap-3 px-4 py-2 rounded bg-cyan-600 text-white text-sm">
-            <span>📊</span>
-            <span>Dashboard</span>
-          </div>
-          
-          {/* Catches - Fisherman + Admin only */}
-          {(userRole === 'fisherman' || userRole === 'admin') && (
-            <button
-              onClick={() => navigate('/fisherman')}
-              className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-            >
-              <span>🎣</span>
-              <span>Catches</span>
-            </button>
-          )}
-          
-          {/* Market - All authenticated users */}
-          <button
-            onClick={() => navigate('/market')}
-            className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-          >
-            <span>🛍️</span>
-            <span>Market</span>
-          </button>
-          
-          {/* Orders - All authenticated users */}
-          <button
-            onClick={() => navigate('/orders')}
-            className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-          >
-            <span>📦</span>
-            <span>Orders</span>
-          </button>
-          
-          {/* Admin Panel - Admin only
-          {userRole === 'admin' && (
-            <button
-              onClick={() => navigate('/admin')}
-              className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-            >
-              <span>👨‍💼</span>
-              <span>Admin Panel</span>
-            </button>
-          )} */}
-          
-          {/* Settings - All authenticated users */}
-          <button
-            onClick={() => navigate('/settings')}
-            className="flex items-center gap-3 px-4 py-2 rounded hover:bg-slate-600 w-full text-left text-sm"
-          >
-            <span>⚙️</span>
-            <span>Settings</span>
-          </button>
-        </nav>
-
-        {/* User Section */}
-        <div className="mb-6 border-t border-slate-600 pt-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-semibold">
-              {user?.name?.charAt(0) || 'E'}
-            </div>
-            <div>
-              <p className="font-semibold text-sm">{user?.name || 'Captain'}</p>
-              <p className="text-xs text-slate-400">{user?.role || 'Fisherman'}</p>
-            </div>
-          </div>
-
-          <button className="w-full bg-cyan-500 text-slate-900 font-semibold py-2 rounded-lg text-sm hover:bg-cyan-400">
-            + Log Catch
-          </button>
-        </div>
-
-        <button
-          onClick={handleLogout}
-          className="w-full text-slate-300 hover:text-white text-sm text-left px-4 py-2 rounded hover:bg-slate-600"
-        >
-          🚪 Logout
-        </button>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 p-8 overflow-auto">
+    <Layout activePage="dashboard" className="bg-gradient-to-br from-slate-300 to-cyan-300 dark:from-slate-900 dark:to-slate-800">
+      <div className="p-4 md:p-8">
         {/* Header */}
-        <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-slate-900">Fleet Overview</h1>
-            <p className="text-slate-700 mt-1">Good morning, {greetingName}. Here is your latest fleet and sales summary.</p>
+            <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100">Fleet Overview</h1>
+            <p className="text-slate-700 dark:text-slate-300 mt-1">Good morning, {greetingName}. Here is your latest fleet and sales summary.</p>
           </div>
           <div className="flex gap-4 items-center">
-            <div className="flex items-center gap-2 bg-white rounded-lg px-4 py-2 shadow">
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 dark:text-slate-100 rounded-lg px-4 py-2 shadow">
               <span>🔔</span>
               <span className="text-sm font-semibold">{newOrdersCount} New Orders</span>
             </div>
-            <div className="text-slate-700 text-sm">
+            <div className="text-slate-700 dark:text-slate-300 text-sm">
               📅 {currentDateString}
             </div>
           </div>
@@ -330,60 +245,60 @@ function Dashboard() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-2xl p-5 shadow-md">
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-5 shadow-md">
             <div className="flex justify-between items-start mb-3">
-              <p className="text-slate-500 text-xs font-semibold">{isFisherman ? 'TOTAL FISH CATCH' : 'AVAILABLE FISH'}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">{isFisherman ? 'TOTAL FISH CATCH' : 'AVAILABLE FISH'}</p>
               <span className="text-xl">🎣</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900">{isFisherman ? totalCatchWeight.toFixed(2) : catches.length}</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">{isFisherman ? totalCatchWeight.toFixed(2) : catches.length}</span>
               <span className="text-xs font-semibold">{isFisherman ? 'kg' : 'listings'}</span>
             </div>
-            <p className="text-slate-500 text-xs font-semibold mt-2">{isFisherman ? `Across ${catches.length} logged catches` : 'Live market inventory'}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-2">{isFisherman ? `Across ${catches.length} logged catches` : 'Live market inventory'}</p>
           </div>
 
           {isFisherman ? (
-            <div className="bg-white rounded-2xl p-5 shadow-md">
+            <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-5 shadow-md">
               <div className="flex justify-between items-start mb-3">
-                <p className="text-slate-500 text-xs font-semibold">EARNINGS</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">EARNINGS</p>
                 <span className="text-xl">💰</span>
               </div>
               <div>
-                <span className="text-2xl font-bold text-slate-900">${Number(earnings.total_earnings || 0).toFixed(2)}</span>
+                <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">${Number(earnings.total_earnings || 0).toFixed(2)}</span>
               </div>
-              <p className="text-slate-500 text-xs font-semibold mt-2">Completed orders</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-2">Completed orders</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl p-5 shadow-md">
+            <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-5 shadow-md">
               <div className="flex justify-between items-start mb-3">
-                <p className="text-slate-500 text-xs font-semibold">FAVORITE LISTINGS</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">FAVORITE LISTINGS</p>
                 <span className="text-xl">⭐</span>
               </div>
               <div>
-                <span className="text-2xl font-bold text-slate-900">{favoriteCount}</span>
+                <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">{favoriteCount}</span>
               </div>
-              <p className="text-slate-500 text-xs font-semibold mt-2">Saved buy recommendations</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-2">Saved buy recommendations</p>
             </div>
           )}
 
-          <div className="bg-white rounded-2xl p-5 shadow-md">
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-5 shadow-md">
             <div className="flex justify-between items-start mb-3">
-              <p className="text-slate-500 text-xs font-semibold">{isFisherman ? 'DAILY SALES' : 'RECENT ORDERS'}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">{isFisherman ? 'DAILY SALES' : 'RECENT ORDERS'}</p>
               <span className="text-xl">💳</span>
             </div>
             <div>
-              <span className="text-2xl font-bold text-slate-900">{isFisherman ? `$${dailySales.toFixed(2)}` : orders.length}</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">{isFisherman ? `$${dailySales.toFixed(2)}` : orders.length}</span>
             </div>
-            <p className="text-slate-500 text-xs font-semibold mt-2">{isFisherman ? 'Last 24 hours' : 'Orders in your history'}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-2">{isFisherman ? 'Last 24 hours' : 'Orders in your history'}</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 shadow-md">
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-5 shadow-md">
             <div className="flex justify-between items-start mb-3">
-              <p className="text-slate-500 text-xs font-semibold">ACTIVE ORDERS</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">ACTIVE ORDERS</p>
               <span className="text-xl">📦</span>
             </div>
             <div>
-              <span className="text-2xl font-bold text-slate-900">{activeOrdersCount}</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">{activeOrdersCount}</span>
             </div>
             <span className="text-cyan-600 text-xs font-semibold mt-2 inline-block bg-cyan-100 px-2 py-1 rounded">Open</span>
           </div>
@@ -392,11 +307,11 @@ function Dashboard() {
         {/* Charts Section */}
         <div className="grid grid-cols-3 gap-6 mb-8">
           {/* Catch Trends */}
-          <div className="col-span-2 bg-white rounded-2xl p-6 shadow-md">
+          <div className="col-span-2 bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-md">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Catch Trends</h2>
-                <p className="text-xs text-slate-500 mt-1">Weekly performance by species</p>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Catch Trends</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Weekly performance by species</p>
               </div>
               <div className="flex gap-2">
                 <button
@@ -404,7 +319,7 @@ function Dashboard() {
                   className={`px-3 py-1 rounded text-xs font-semibold ${
                     activeTab === 'week'
                       ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
                   }`}
                 >
                   Week
@@ -414,7 +329,7 @@ function Dashboard() {
                   className={`px-3 py-1 rounded text-xs font-semibold ${
                     activeTab === 'month'
                       ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
                   }`}
                 >
                   Month
@@ -430,22 +345,22 @@ function Dashboard() {
                     className="w-full bg-gradient-to-t from-cyan-500 to-cyan-300 rounded-t-lg transition-all hover:from-cyan-600 hover:to-cyan-400"
                     style={{ height: `${(data.value / maxValue) * 200}px` }}
                   ></div>
-                  <p className="text-xs text-slate-600 mt-3 font-medium">{data.day}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-3 font-medium">{data.day}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Real-time Feed */}
-          <div className="bg-white rounded-2xl p-6 shadow-md">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Real-time Feed</h2>
+          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-md">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Real-time Feed</h2>
             <div className="space-y-4">
               {realTimeFeed.map((item) => (
-                <div key={item.id} className="flex gap-3 pb-4 border-b border-slate-200 last:border-b-0">
+                <div key={item.id} className="flex gap-3 pb-4 border-b border-slate-200 dark:border-slate-700 last:border-b-0">
                   <span className="text-2xl flex-shrink-0">{item.icon}</span>
                   <div className="flex-1 text-sm">
-                    <p className="font-semibold text-slate-900">{item.title}</p>
-                    <p className="text-xs text-slate-500 mt-1">{item.subtitle}</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100">{item.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{item.subtitle}</p>
                     <p className="text-xs text-slate-400 mt-1">{item.time}</p>
                   </div>
                 </div>
@@ -461,19 +376,19 @@ function Dashboard() {
         </div>
 
         {/* Recent Catches */}
-        <div className="bg-white rounded-2xl p-6 shadow-md mb-8">
+        <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-md mb-8">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-slate-900">Recent Catches</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Recent Catches</h2>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowRecentFilter(!showRecentFilter)}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-900"
               >
                 🔽 Filter
               </button>
               <button
                 onClick={exportRecentCatches}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-900"
               >
                 📥 Export
               </button>
@@ -488,11 +403,11 @@ function Dashboard() {
           {showRecentFilter && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">Species</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Species</label>
                 <select
                   value={filterSpecies}
                   onChange={(e) => setFilterSpecies(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2"
                 >
                   <option>All</option>
                   {recentCatches.map(item => item.species).filter((value, index, self) => self.indexOf(value) === index).map((species) => (
@@ -501,11 +416,11 @@ function Dashboard() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">Status</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Status</label>
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2"
                 >
                   <option>All</option>
                   <option>LISTED</option>
@@ -514,11 +429,11 @@ function Dashboard() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">Location</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Location</label>
                 <select
                   value={filterLocation}
                   onChange={(e) => setFilterLocation(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2"
                 >
                   <option>All</option>
                   {recentCatches.map(item => item.location).filter((value, index, self) => self.indexOf(value) === index).map((location) => (
@@ -531,28 +446,28 @@ function Dashboard() {
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-slate-200">
+              <thead className="border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">SPECIES</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">WEIGHT</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">LOCATION</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">TIME</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900">STATUS</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">SPECIES</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">WEIGHT</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">LOCATION</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">TIME</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">STATUS</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRecentCatches.length > 0 ? (
                   filteredRecentCatches.map((catch_) => (
-                    <tr key={catch_.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <tr key={catch_.id} className="border-b border-slate-100 hover:bg-slate-50 dark:bg-slate-900">
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <span className="text-xl">{catch_.icon}</span>
-                          <span className="font-semibold text-slate-900">{catch_.species}</span>
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">{catch_.species}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-slate-700">{catch_.weight}</td>
-                      <td className="py-4 px-4 text-slate-700">{catch_.location}</td>
-                      <td className="py-4 px-4 text-slate-700">{catch_.time}</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.weight}</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.location}</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.time}</td>
                       <td className="py-4 px-4">
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -570,7 +485,7 @@ function Dashboard() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5" className="py-6 px-4 text-center text-sm text-slate-500">
+                    <td colSpan="5" className="py-6 px-4 text-center text-sm text-slate-500 dark:text-slate-400">
                       No catches match the selected filters.
                     </td>
                   </tr>
@@ -581,8 +496,8 @@ function Dashboard() {
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 }
 
