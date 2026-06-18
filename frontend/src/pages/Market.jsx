@@ -54,8 +54,7 @@ function Market() {
       const normalized = (response.data || []).map(item => ({
         ...item,
         price: Number(item.price) || 0,
-        quantity: Number(item.quantity) || 0,
-        stock: Number(item.quantity ?? item.stock) || 0,
+        weight: Number(item.weight) || 0,
       }));
       setCatches(normalized);
     } catch (err) {
@@ -82,7 +81,7 @@ function Market() {
       const matchesPrice = price <= priceRange;
       const matchesFreshness = freshness === 'All' || (freshness === 'Premium' && catchItem.status === 'fresh');
       const matchesFisherman = !selectedFishermanId || catchItem.fisherman_id === selectedFishermanId;
-      const isAvailable = Number(catchItem.quantity) > 0 && catchItem.status !== 'sold';
+      const isAvailable = Number(catchItem.weight) > 0 && catchItem.status !== 'sold';
 
       return matchesSearch && matchesSpecies && matchesLocation && matchesPrice && matchesFreshness && matchesFisherman && isAvailable;
     });
@@ -104,17 +103,17 @@ function Market() {
       return;
     }
 
-    const availableStock = Number(catchItem.quantity ?? catchItem.stock) || 0;
+    const availableStock = Number( catchItem.weight) || 0;
 
     const existingItem = cart.find(item => item.id === catchItem.id);
     if (existingItem) {
-      if (existingItem.quantity + 1 > availableStock) {
+      if (existingItem.weight + 1 > availableStock) {
         alert(`Only ${availableStock} kg available in stock.`);
         return;
       }
       setCart(cart.map(item =>
         item.id === catchItem.id
-          ? { ...item, quantity: item.quantity + 1 }
+          ? { ...item, weight: item.weight + 1 }
           : item
       ));
     } else {
@@ -125,9 +124,8 @@ function Market() {
       setCart([...cart, {
         id: catchItem.id,
         fish_name: catchItem.fish_name,
-        quantity: 1,
+        weight: 1,
         price: Number(catchItem.price) || 0,
-        weight: catchItem.weight,
         location: catchItem.location,
         availableStock: availableStock
       }]);
@@ -143,7 +141,7 @@ function Market() {
       return;
     }
 
-    const availableStock = Number(catchItem.quantity ?? catchItem.stock) || 0;
+    const availableStock = Number(catchItem.weight) || 0;
     if (availableStock < 1) {
       alert('Item is out of stock.');
       return;
@@ -154,7 +152,7 @@ function Market() {
         total_price: parseFloat((Number(catchItem.price) || 0).toFixed(2)),
         items: [{
           fish_id: catchItem.id,
-          quantity: 1,
+          weight: 1,
           price: catchItem.price
         }],
         delivery_info: deliveryInfo || 'Direct Purchase'
@@ -169,7 +167,7 @@ function Market() {
         } 
       });
     } catch (err) {
-      setError('Unable to place order.');
+      setError(err.response?.data?.message || 'Unable to place order.');
       console.error(err);
     }
   };
@@ -177,13 +175,13 @@ function Market() {
   const removeFromCart = (id) => {
     setCart(cart.filter(item => item.id !== id));
   };
-  const updateQuantity = (id, quantity) => {
-    if (quantity <= 0) {
+  const updateWeight = (id, weight) => {
+    if (weight <= 0) {
       removeFromCart(id);
     } else {
       setCart(cart.map(item => {
         if (item.id === id) {
-          if (quantity > item.availableStock) {
+          if (weight > item.availableStock) {
             setCartMessages(prev => ({ ...prev, [id]: `Only ${item.availableStock} kg available in stock.` }));
             setTimeout(() => {
               setCartMessages(prev => {
@@ -192,9 +190,9 @@ function Market() {
                 return newMsgs;
               });
             }, 3000);
-            return { ...item, quantity: item.availableStock };
+            return { ...item, weight: item.availableStock };
           }
-          return { ...item, quantity };
+          return { ...item, weight };
         }
         return item;
       }));
@@ -202,12 +200,12 @@ function Market() {
   };
 
   const getTotalPrice = () => {
-    const total = cart.reduce((sum, item) => sum + (item.quantity * (Number(item.price) || 0)), 0);
+    const total = cart.reduce((sum, item) => sum + (item.weight * (Number(item.price) || 0)), 0);
     return total.toFixed(2);
   };
 
   const getTotalItems = () => {
-    return cart.reduce((total, item) => total + item.quantity, 0);
+    return cart.reduce((total, item) => total + item.weight, 0);
   };
 
   const placeOrder = async () => {
@@ -232,11 +230,12 @@ function Market() {
         total_price: parseFloat(getTotalPrice()),
         items: cart.map(item => ({
           fish_id: item.id,
-          quantity: item.quantity,
+          weight: item.weight,
           price: item.price
         })),
         delivery_info: deliveryInfo
       };
+      console.log(orderData);
 
       const response = await api.post('/orders', orderData);
       setCart([]);
@@ -250,7 +249,7 @@ function Market() {
         } 
       });
     } catch (err) {
-      setError('Unable to place order.');
+      setError(err.response?.data?.message || 'Unable to place order.');
       console.error(err);
     }
   };
@@ -273,14 +272,14 @@ function Market() {
 
   const getFishermanVarieties = (fishermanId) => {
     const fishermanCatches = catches.filter(
-      (item) => item.fisherman_id === fishermanId && Number(item.quantity) > 0 && item.status !== 'sold'
+      (item) => item.fisherman_id === fishermanId && Number(item.weight) > 0 && item.status !== 'sold'
     );
     return new Set(fishermanCatches.map((item) => item.fish_name)).size;
   };
 
   const getFishermanProductCount = (fishermanId) => {
     return catches.filter(
-      (item) => item.fisherman_id === fishermanId && Number(item.quantity) > 0 && item.status !== 'sold'
+      (item) => item.fisherman_id === fishermanId && Number(item.weight) > 0 && item.status !== 'sold'
     ).length;
   };
 
@@ -517,8 +516,8 @@ function Market() {
           <div id="market-grid" className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredCatches.length > 0 ? (
               filteredCatches.map((catchItem) => {
-                const stock = Number(catchItem.stock ?? catchItem.quantity) || 0;
-                const isOutOfStock = stock <= 0;
+                const weight = Number(catchItem.weight ) || 0;
+                const isOutOfStock = weight <= 0;
                 const isPremium = catchItem.status !== 'fresh';
 
                 return (
@@ -577,7 +576,7 @@ function Market() {
 
                       <div className="mt-3 text-xs">
                         <span className="rounded-md bg-slate-100 dark:bg-slate-700 px-2 py-1 font-medium text-slate-600 dark:text-slate-300">
-                          {stock}KG Avail.
+                          {weight}KG Avail.
                         </span>
                       </div>
 
@@ -668,13 +667,13 @@ function Market() {
                     <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700">✕</button>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 w-8 h-8 rounded-lg flex items-center justify-center font-bold hover:bg-slate-50">-</button>
-                    <span className="font-semibold w-6 text-center">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 w-8 h-8 rounded-lg flex items-center justify-center font-bold hover:bg-slate-50">+</button>
+                    <button onClick={() => updateWeight(item.id, item.weight - 1)} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 w-8 h-8 rounded-lg flex items-center justify-center font-bold hover:bg-slate-50">-</button>
+                    <span className="font-semibold w-6 text-center">{item.weight}</span>
+                    <button onClick={() => updateWeight(item.id, item.weight + 1)} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 w-8 h-8 rounded-lg flex items-center justify-center font-bold hover:bg-slate-50">+</button>
                   </div>
                   {cartMessages[item.id] && <p className="text-red-500 text-xs mt-2">{cartMessages[item.id]}</p>}
                   <p className="text-sm font-bold text-slate-900 dark:text-white mt-3 border-t border-slate-200 pt-2">
-                    Total: ${(item.quantity * (Number(item.price) || 0)).toFixed(2)}
+                    Total: ${(item.weight * (Number(item.price) || 0)).toFixed(2)}
                   </p>
                 </div>
               ))

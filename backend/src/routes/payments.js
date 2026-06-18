@@ -5,21 +5,36 @@ import { createNotification } from '../models/userModel.js';
 
 const router = express.Router();
 
-// Get all pending payments for admin
+// Get payments for admin and fishermen
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Forbidden' });
+    if (req.user.role === 'admin') {
+      const result = await pool.query(
+        `SELECT p.*, o.total_price, u.name as buyer_name, u.email as buyer_email 
+         FROM payments p
+         JOIN orders o ON p.order_id = o.id
+         JOIN users u ON p.user_id = u.id
+         ORDER BY p.created_at DESC`
+      );
+      return res.json(result.rows);
     }
-    
-    const result = await pool.query(
-      `SELECT p.*, o.total_price, u.name as buyer_name, u.email as buyer_email 
-       FROM payments p
-       JOIN orders o ON p.order_id = o.id
-       JOIN users u ON p.user_id = u.id
-       ORDER BY p.created_at DESC`
-    );
-    res.json(result.rows);
+
+    if (req.user.role === 'fisherman') {
+      const result = await pool.query(
+        `SELECT DISTINCT p.*, o.total_price, u.name as buyer_name, u.email as buyer_email
+         FROM payments p
+         JOIN orders o ON p.order_id = o.id
+         JOIN users u ON p.user_id = u.id
+         JOIN order_items oi ON oi.order_id = o.id
+         JOIN fish_catches fc ON oi.fish_id = fc.id
+         WHERE fc.user_id = $1
+         ORDER BY p.created_at DESC`,
+        [req.user.id]
+      );
+      return res.json(result.rows);
+    }
+
+    return res.status(403).json({ message: 'Forbidden' });
   } catch (error) {
     console.error('Error fetching payments:', error);
     res.status(500).json({ message: 'Server error' });

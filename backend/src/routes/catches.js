@@ -53,15 +53,14 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create new fish catch
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { fish_name, quantity, weight, price, location, image, catch_date } = req.body;
+    const { fish_name, weight, price, location, image, catch_date } = req.body;
 
-    if (!fish_name || !quantity || !price) {
-      return res.status(400).json({ message: 'Fish name, quantity, and price are required' });
+    if (!fish_name || !weight || !price) {
+      return res.status(400).json({ message: 'Fish name, weight, and price are required' });
     }
 
     const newCatch = await createFishCatch({
       fish_name,
-      quantity,
       weight,
       price,
       location,

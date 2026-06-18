@@ -102,10 +102,10 @@ export async function getRevenueByDay(days = 7) {
 
 
 // Fish catches functions
-export async function createFishCatch({ fish_name, quantity, weight, price, location, image, catch_date, user_id }) {
+export async function createFishCatch({ fish_name, weight, price, location, image, catch_date, user_id }) {
   const result = await pool.query(
-    'INSERT INTO fish_catches (fish_name, quantity, weight, price, location, image, catch_date, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-    [fish_name, quantity, weight, price, location, image, catch_date, user_id]
+    'INSERT INTO fish_catches (fish_name, weight, price, location, image, catch_date, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+    [fish_name, weight, price, location, image, catch_date, user_id]
   );
   return result.rows[0];
 }
@@ -147,7 +147,7 @@ export async function getFishCatchById(id) {
   return result.rows[0];
 }
 
-export async function updateFishCatch(id, { fish_name, quantity, weight, price, location, image, catch_date, status }) {
+export async function updateFishCatch(id, { fish_name, weight, price, location, image, catch_date, status }) {
   const updates = [];
   const values = [];
   let paramCount = 1;
@@ -155,10 +155,6 @@ export async function updateFishCatch(id, { fish_name, quantity, weight, price, 
   if (fish_name !== undefined) {
     updates.push(`fish_name = $${paramCount++}`);
     values.push(fish_name);
-  }
-  if (quantity !== undefined) {
-    updates.push(`quantity = $${paramCount++}`);
-    values.push(quantity);
   }
   if (weight !== undefined) {
     updates.push(`weight = $${paramCount++}`);
@@ -193,15 +189,28 @@ export async function updateFishCatch(id, { fish_name, quantity, weight, price, 
   return result.rows[0];
 }
 
-export async function reduceFishCatchQuantity(id, quantity) {
+export async function reduceFishCatchWeight(id, weight) {
   const result = await pool.query(
     `UPDATE fish_catches
-       SET quantity = GREATEST(quantity - $1, 0),
-           status = CASE WHEN quantity - $1 <= 0 THEN 'sold' ELSE status END,
+       SET weight = GREATEST(weight - $1, 0),
+           status = CASE WHEN weight - $1 <= 0 THEN 'sold' ELSE status END,
            updated_at = CURRENT_TIMESTAMP
      WHERE id = $2
      RETURNING *`,
-    [quantity, id]
+    [weight, id]
+  );
+  return result.rows[0];
+}
+
+export async function restoreFishCatchWeight(id, weight) {
+  const result = await pool.query(
+    `UPDATE fish_catches
+       SET weight = weight + $1,
+           status = CASE WHEN weight + $1 > 0 AND status = 'sold' THEN 'listed' ELSE status END,
+           updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2
+     RETURNING *`,
+    [weight, id]
   );
   return result.rows[0];
 }
@@ -358,10 +367,10 @@ export async function isOrderOwnedByFisherman(order_id, fisherman_id) {
 }
 
 // Order items functions
-export async function createOrderItem({ order_id, fish_id, quantity, price }) {
+export async function createOrderItem({ order_id, fish_id, weight, price }) {
   const result = await pool.query(
-    'INSERT INTO order_items (order_id, fish_id, quantity, price) VALUES ($1, $2, $3, $4) RETURNING *',
-    [order_id, fish_id, quantity, price]
+    'INSERT INTO order_items (order_id, fish_id, weight, price) VALUES ($1, $2, $3, $4) RETURNING *',
+    [order_id, fish_id, weight, price]
   );
   return result.rows[0];
 }

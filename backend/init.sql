@@ -16,8 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS fish_catches (
   id SERIAL PRIMARY KEY,
   fish_name VARCHAR(100) NOT NULL,
-  quantity DECIMAL(10,2) NOT NULL,
-  weight DECIMAL(10,2),
+  weight DECIMAL(10,2) NOT NULL,
   price DECIMAL(10,2) NOT NULL,
   location VARCHAR(255),
   image TEXT,
@@ -49,7 +48,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   id SERIAL PRIMARY KEY,
   order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
   fish_id INTEGER REFERENCES fish_catches(id) ON DELETE CASCADE,
-  quantity DECIMAL(10,2) NOT NULL,
+  weight DECIMAL(10,2) NOT NULL,
   price DECIMAL(10,2) NOT NULL
 );
 

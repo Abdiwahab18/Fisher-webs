@@ -50,6 +50,29 @@ export async function migrate() {
     `);
     console.log('✓ Notifications table created');
 
+    // Migrate quantity to weight
+    try {
+      await pool.query(`
+        UPDATE fish_catches SET weight = quantity WHERE weight IS NULL;
+        ALTER TABLE fish_catches DROP COLUMN IF EXISTS quantity;
+      `);
+    } catch (err) {
+      if (err.code !== '42703') throw err;
+    }
+    
+    // For order_items, rename quantity to weight if quantity exists
+    try {
+      await pool.query(`
+        ALTER TABLE order_items RENAME COLUMN quantity TO weight;
+      `);
+    } catch (err) {
+      // Ignore error if column is already renamed
+      if (err.code !== '42703') {
+        throw err;
+      }
+    }
+    console.log('✓ Converted quantity to weight globally');
+
     console.log('✓ Migration completed successfully');
   } catch (error) {
     console.error('Migration failed:', error);

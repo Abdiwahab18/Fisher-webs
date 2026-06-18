@@ -14,7 +14,6 @@ function FishermanRecords() {
   const userRole = localStorage.getItem('fisher_role');
   const [formData, setFormData] = useState({
     fish_name: '',
-    quantity: '',
     weight: '',
     price: '',
     location: '',
@@ -40,7 +39,6 @@ function FishermanRecords() {
   const resetForm = () => {
     setFormData({
       fish_name: '',
-      quantity: '',
       weight: '',
       price: '',
       location: '',
@@ -70,12 +68,7 @@ function FishermanRecords() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (parseFloat(formData.quantity) <= 0) {
-      setError('Quantity must be greater than 0.');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-    if (formData.weight && parseFloat(formData.weight) <= 0) {
+    if (!formData.weight || parseFloat(formData.weight) <= 0) {
       setError('Weight must be greater than 0.');
       setTimeout(() => setError(''), 3000);
       return;
@@ -108,7 +101,6 @@ function FishermanRecords() {
   const handleEdit = (catch_) => {
     setFormData({
       fish_name: catch_.fish_name,
-      quantity: catch_.quantity,
       weight: catch_.weight || '',
       price: catch_.price,
       location: catch_.location || '',
@@ -138,7 +130,7 @@ function FishermanRecords() {
     navigate('/login');
   };
 
-  const totalValue = catches.reduce((sum, c) => sum + (parseFloat(c.price) * parseFloat(c.quantity) || 0), 0);
+  const totalValue = catches.reduce((sum, c) => sum + (parseFloat(c.price) * parseFloat(c.weight) || 0), 0);
   const activeCatches = catches.filter(c => c.status !== 'sold').length;
 
   return (
@@ -165,7 +157,7 @@ function FishermanRecords() {
         )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm">
             <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Total Catches</p>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">{catches.length}</p>
@@ -181,7 +173,7 @@ function FishermanRecords() {
           <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm">
             <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Total Weight</p>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">
-              {catches.reduce((sum, c) => sum + parseFloat(c.quantity || 0), 0).toFixed(1)} kg
+              {catches.reduce((sum, c) => sum + parseFloat(c.weight || 0), 0).toFixed(1)} kg
             </p>
             <p className="text-slate-600 dark:text-slate-400 text-xs mt-3">All catches</p>
           </div>
@@ -199,7 +191,7 @@ function FishermanRecords() {
             <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">
               {editingId ? 'Edit Catch' : 'Log New Catch'}
             </h2>
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Fish Species *</label>
                 <select
@@ -219,20 +211,7 @@ function FishermanRecords() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Quantity</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  name="quantity"
-                  value={formData.quantity}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Weight (kg)</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Weight (kg) *</label>
                 <input
                   type="number"
                   step="0.01"
@@ -241,6 +220,7 @@ function FishermanRecords() {
                   value={formData.weight}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
+                  required
                 />
               </div>
               <div>
@@ -264,6 +244,7 @@ function FishermanRecords() {
                   value={formData.location}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
+                  required
                 />
               </div>
               <div>
@@ -278,7 +259,7 @@ function FishermanRecords() {
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Image Upload (optional)</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Image Upload </label>
                 <input
                   type="file"
                   accept="image/*"
@@ -356,12 +337,12 @@ function FishermanRecords() {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 dark:border-slate-700">
                 <tr>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">SPECIES</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">QUANTITY</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">WEIGHT</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">PRICE/KG</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">LOCATION</th>
@@ -386,8 +367,7 @@ function FishermanRecords() {
                           <span className="font-semibold text-slate-900 dark:text-slate-100">{catch_.fish_name}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{parseFloat(catch_.quantity).toFixed(2)} kg</td>
-                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.weight ? parseFloat(catch_.weight).toFixed(2) : '---'} kg</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{parseFloat(catch_.weight).toFixed(2)} kg</td>
                       <td className="py-4 px-4 text-slate-700 dark:text-slate-300 font-semibold">${parseFloat(catch_.price).toFixed(2)}</td>
                       <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.location || '---'}</td>
                       <td className="py-4 px-4 text-slate-700 dark:text-slate-300">
@@ -408,12 +388,12 @@ function FishermanRecords() {
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex gap-2">
-                          <button
+                          {/* <button
                             onClick={() => handleEdit(catch_)}
                             className="text-blue-600 hover:text-blue-800 font-semibold text-xs"
                           >
                             Edit
-                          </button>
+                          </button> */}
                           <button
                             onClick={() => setDeleteConfirm(catch_.id)}
                             className="text-red-600 hover:text-red-800 font-semibold text-xs"
@@ -433,6 +413,66 @@ function FishermanRecords() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden flex flex-col gap-4 mt-4">
+            {catches.length > 0 ? (
+              catches.map((catch_) => (
+                <div key={catch_.id} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 flex flex-col gap-3 bg-slate-50 dark:bg-slate-900/50 shadow-sm">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      {catch_.image ? (
+                        <img src={catch_.image} alt={catch_.fish_name} className="w-12 h-12 rounded-full object-cover shadow-sm border border-slate-200" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-cyan-100 dark:bg-cyan-900/50 flex items-center justify-center text-cyan-600 dark:text-cyan-400 font-bold text-lg shadow-sm">
+                          {catch_.fish_name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-bold text-slate-900 dark:text-slate-100 text-lg block">{catch_.fish_name}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {catch_.catch_date ? new Date(catch_.catch_date).toLocaleDateString() : new Date(catch_.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      catch_.status === 'sold'
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        : catch_.status === 'pending'
+                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                        : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    }`}>
+                      {catch_.status ? catch_.status.charAt(0).toUpperCase() + catch_.status.slice(1) : 'Listed'}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-2 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50">
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400 text-xs block mb-1">Weight</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{parseFloat(catch_.weight).toFixed(2)} kg</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400 text-xs block mb-1">Price/kg</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">${parseFloat(catch_.price).toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400 text-xs block mb-1">Location</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{catch_.location || '---'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-1 pt-3 border-t border-slate-200 dark:border-slate-700">
+                    {/* <button onClick={() => handleEdit(catch_)} className="flex-1 bg-blue-50 text-blue-700 py-2.5 rounded-lg font-bold text-sm hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 transition-colors">Edit</button> */}
+                    <button onClick={() => setDeleteConfirm(catch_.id)} className="flex-1 bg-red-50 text-red-700 py-2.5 rounded-lg font-bold text-sm hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 transition-colors">Delete</button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
+                No catches recorded yet. Click "Add Catch" to get started.
+              </div>
+            )}
           </div>
         </div>
       </div>

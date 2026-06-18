@@ -143,11 +143,11 @@ function AdminPanel() {
     }
 
     if (catches && catches.length) {
-      const catchHeaders = ['id', 'fish_name', 'quantity', 'price', 'location', 'created_at'];
+      const catchHeaders = ['id', 'fish_name', 'weight', 'price', 'location', 'created_at'];
       const catchRows = catches.map(c => ({
         id: c.id,
         fish_name: c.fish_name,
-        quantity: c.quantity,
+        weight: c.weight,
         price: c.price,
         location: c.location || '',
         created_at: c.created_at || c.catch_date || '',
@@ -205,7 +205,7 @@ function AdminPanel() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
             <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Total Users</p>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">{users.length}</p>
@@ -232,7 +232,7 @@ function AdminPanel() {
         </div>
 
         {/* Secondary Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
             <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Total Catches</p>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">{catches.length}</p>
@@ -253,9 +253,9 @@ function AdminPanel() {
         </div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Sales Analytics */}
-          <div className="col-span-2 bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Revenue Analytics (Last 7 Days)</h2>
             </div>
@@ -323,15 +323,15 @@ function AdminPanel() {
 
         {/* User Management Table */}
         <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">User Management</h2>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3 w-full xl:w-auto">
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by name or email..."
-                className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm"
+                className="flex-1 min-w-[200px] px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
 
               <select
@@ -360,7 +360,8 @@ function AdminPanel() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm text-slate-700 dark:text-slate-300">
               <thead className="border-b border-slate-200 dark:border-slate-700">
                 <tr>
@@ -439,7 +440,74 @@ function AdminPanel() {
                 )}
               </tbody>
             </table>
-           
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden flex flex-col gap-4 mt-4">
+            {users.filter((user) => {
+              const q = searchTerm.trim().toLowerCase();
+              if (q) {
+                const name = (user.name || '').toLowerCase();
+                const email = (user.email || '').toLowerCase();
+                if (!name.includes(q) && !email.includes(q)) return false;
+              }
+              if (roleFilter !== 'all' && (user.role || '').toLowerCase() !== roleFilter) return false;
+              if (statusFilter !== 'all' && (user.status || 'active').toLowerCase() !== statusFilter) return false;
+              return true;
+            }).length > 0 ? (
+              users
+                .filter((user) => {
+                  const q = searchTerm.trim().toLowerCase();
+                  if (q) {
+                    const name = (user.name || '').toLowerCase();
+                    const email = (user.email || '').toLowerCase();
+                    if (!name.includes(q) && !email.includes(q)) return false;
+                  }
+                  if (roleFilter !== 'all' && (user.role || '').toLowerCase() !== roleFilter) return false;
+                  if (statusFilter !== 'all' && (user.status || 'active').toLowerCase() !== statusFilter) return false;
+                  return true;
+                })
+                .map((user) => (
+                  <div key={user.id} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 shadow-sm flex flex-col gap-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold shadow-sm">
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{user.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{user.email}</p>
+                        </div>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 capitalize">
+                        {user.role}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</span>
+                      <select
+                        value={user.status || 'active'}
+                        onChange={(e) => handleUserStatusChange(user.id, e.target.value)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border-0 cursor-pointer shadow-sm ${
+                          user.status === 'active' || !user.status
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : user.status === 'inactive'
+                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="py-8 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-xl">
+                {error || 'No users found'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -449,7 +517,8 @@ function AdminPanel() {
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Payment Verifications</h2>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm text-slate-700 dark:text-slate-300">
               <thead className="border-b border-slate-200 dark:border-slate-700">
                 <tr>
@@ -513,6 +582,62 @@ function AdminPanel() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden flex flex-col gap-4 mt-4">
+            {payments.length > 0 ? (
+              payments.map((payment) => (
+                <div key={payment.id} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 shadow-sm flex flex-col gap-3">
+                  <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-700 pb-3">
+                    <div>
+                      <p className="font-bold text-slate-900 dark:text-slate-100">Order #{payment.order_id}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{payment.buyer_name} • {payment.buyer_email}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      payment.status === 'verified' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                      payment.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                      'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    }`}>
+                      {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50">
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Amount</p>
+                      <p className="font-bold text-cyan-600">${Number(payment.amount).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Ref / Phone</p>
+                      <p className="font-mono text-slate-900 dark:text-slate-100 text-xs">{payment.reference}</p>
+                      <p className="text-xs text-slate-500">{payment.sender_phone}</p>
+                    </div>
+                  </div>
+
+                  {payment.status === 'pending' && (
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <button
+                        onClick={() => handleVerifyPayment(payment.id, 'verified')}
+                        className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 py-2 rounded-lg text-sm font-bold transition-colors"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleVerifyPayment(payment.id, 'rejected')}
+                        className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 py-2 rounded-lg text-sm font-bold transition-colors"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-xl">
+                No payments found
+              </div>
+            )}
           </div>
         </div>
 

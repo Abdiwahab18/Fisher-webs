@@ -10,13 +10,11 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState('week');
   const [catches, setCatches] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [catchTrends, setCatchTrends] = useState([]);
-  const [recentCatches, setRecentCatches] = useState([]);
   const [realTimeFeed, setRealTimeFeed] = useState([]);
-  const [showRecentFilter, setShowRecentFilter] = useState(false);
-  const [filterSpecies, setFilterSpecies] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [filterLocation, setFilterLocation] = useState('All');
+  const [showPaymentsFilter, setShowPaymentsFilter] = useState(false);
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState('All');
   const [earnings, setEarnings] = useState({ total_earnings: 0 });
   const [earningsTrends, setEarningsTrends] = useState([]);
   const [favoriteCount, setFavoriteCount] = useState(0);
@@ -36,26 +34,34 @@ function Dashboard() {
 
   const loadDashboard = useCallback(async () => {
     try {
-      const [profileRes, catchesRes, ordersRes] = await Promise.all([
+      const [profileRes, catchesRes, ordersRes, paymentsRes] = await Promise.all([
         api.get('/users/me'),
         api.get(isAdmin ? '/catches' : isFisherman ? '/catches/my-catches' : '/catches'),
         api.get(isAdmin || isFisherman ? '/orders' : '/orders/my-orders'),
+        (isAdmin || isFisherman) ? api.get('/payments') : Promise.resolve({ data: [] }),
       ]);
 
       const profile = profileRes.data;
       const catchesData = (catchesRes.data || []).map(item => ({
         ...item,
-        quantity: Number(item.quantity) || 0,
+        weight: Number(item.weight) || 0,
         price: Number(item.price) || 0,
+        status: String(item.status || 'listed').toLowerCase(),
       }));
       const ordersData = (ordersRes.data || []).map(item => ({
         ...item,
         total_price: Number(item.total_price) || 0,
       }));
+      const paymentsData = (paymentsRes.data || []).map(item => ({
+        ...item,
+        amount: Number(item.amount) || 0,
+        status: String(item.status || 'pending').toLowerCase(),
+      }));
 
       setUser(profile);
       setCatches(catchesData);
       setOrders(ordersData);
+      setPayments(paymentsData);
 
       // Load earnings data for fishermen
       if (isFisherman) {
@@ -71,21 +77,6 @@ function Dashboard() {
         }
       }
 
-      const recent = catchesData
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 5)
-        .map((item, index) => ({
-          id: item.id || index,
-          species: item.fish_name,
-          weight: `${item.quantity.toFixed(2)} kg`,
-          location: item.location || 'Unknown',
-          time: new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: item.status || 'LISTED',
-          // icon: '🐟',
-        }));
-
-      setRecentCatches(recent);
-
       const days = Array.from({ length: 7 }, (_, index) => {
         const date = new Date();
         date.setDate(date.getDate() - (6 - index));
@@ -100,7 +91,7 @@ function Dashboard() {
       catchesData.forEach(item => {
         const key = new Date(item.created_at).toISOString().slice(0, 10);
         if (trendMap.has(key)) {
-          trendMap.get(key).value += item.quantity;
+          trendMap.get(key).value += item.weight;
         }
       });
 
@@ -123,7 +114,7 @@ function Dashboard() {
         feed.push({
           id: `catch-${newestCatch.id}`,
           title: 'Latest Catch Logged',
-          subtitle: `${newestCatch.fish_name} • ${newestCatch.quantity.toFixed(2)} kg`,
+          subtitle: `${newestCatch.fish_name} • ${newestCatch.weight.toFixed(2)} kg`,
           time: getRelativeTime(newestCatch.created_at),
           icon: '🐟',
         });
@@ -173,32 +164,36 @@ function Dashboard() {
     navigate('/login');
   };
 
-  const totalCatchWeight = catches.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const totalCatchWeight = catches.reduce((sum, item) => sum + (Number(item.weight) || 0), 0);
   const totalRevenue = orders.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
   const dailySales = orders
     .filter(order => new Date(order.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000))
     .reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
 
-  const filteredRecentCatches = recentCatches.filter((item) => {
-    const matchesSpecies = filterSpecies === 'All' || item.species === filterSpecies;
-    const matchesStatus = filterStatus === 'All' || item.status === filterStatus;
-    const matchesLocation = filterLocation === 'All' || item.location === filterLocation;
-    return matchesSpecies && matchesStatus && matchesLocation;
+  const filteredPayments = payments.filter((item) => {
+    return filterPaymentStatus === 'All' || item.status === filterPaymentStatus;
   });
 
-  const exportRecentCatches = () => {
-    if (!filteredRecentCatches.length) {
-      alert('No catches to export.');
+  const exportPayments = () => {
+    if (!filteredPayments.length) {
+      alert('No payments to export.');
       return;
     }
-    const headers = ['species', 'weight', 'location', 'time', 'status'];
-    const rows = filteredRecentCatches.map(c => [c.species, c.weight, c.location, c.time, c.status]);
+    const headers = ['order_id', 'amount', 'status', 'method', 'reference', 'date'];
+    const rows = filteredPayments.map(p => [
+      p.order_id,
+      `$${p.amount.toFixed(2)}`,
+      p.status.toUpperCase(),
+      p.method || 'N/A',
+      p.reference || 'N/A',
+      new Date(p.created_at).toLocaleDateString('en-US'),
+    ]);
     const csv = [headers.join(','), ...rows.map(r => r.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `recent-catches-${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `recent-payments-${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -244,7 +239,7 @@ function Dashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-5 shadow-md">
             <div className="flex justify-between items-start mb-3">
               <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">{isFisherman ? 'TOTAL FISH CATCH' : 'AVAILABLE FISH'}</p>
@@ -305,9 +300,9 @@ function Dashboard() {
         </div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Catch Trends */}
-          <div className="col-span-2 bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-md">
+          <div className="col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-md">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Catch Trends</h2>
@@ -375,70 +370,38 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Catches */}
+        {/* Recent Payments */}
         <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-md mb-8">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Recent Catches</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Recent Payments</h2>
             <div className="flex gap-3">
               <button
-                onClick={() => setShowRecentFilter(!showRecentFilter)}
+                onClick={() => setShowPaymentsFilter(!showPaymentsFilter)}
                 className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-900"
               >
                 🔽 Filter
               </button>
               <button
-                onClick={exportRecentCatches}
+                onClick={exportPayments}
                 className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-900"
               >
                 📥 Export
               </button>
-              <button
-                onClick={openNewCatchReport}
-                className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-semibold hover:bg-cyan-600"
-              >
-                + NEW CATCH REPORT
-              </button>
             </div>
           </div>
-          {showRecentFilter && (
+          {showPaymentsFilter && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Species</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Payment Status</label>
                 <select
-                  value={filterSpecies}
-                  onChange={(e) => setFilterSpecies(e.target.value)}
+                  value={filterPaymentStatus}
+                  onChange={(e) => setFilterPaymentStatus(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2"
                 >
                   <option>All</option>
-                  {recentCatches.map(item => item.species).filter((value, index, self) => self.indexOf(value) === index).map((species) => (
-                    <option key={species}>{species}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Status</label>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2"
-                >
-                  <option>All</option>
-                  <option>LISTED</option>
-                  <option>PROCESSING</option>
-                  <option>VERIFIED</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Location</label>
-                <select
-                  value={filterLocation}
-                  onChange={(e) => setFilterLocation(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2"
-                >
-                  <option>All</option>
-                  {recentCatches.map(item => item.location).filter((value, index, self) => self.indexOf(value) === index).map((location) => (
-                    <option key={location}>{location}</option>
-                  ))}
+                  <option value="pending">PENDING</option>
+                  <option value="verified">VERIFIED</option>
+                  <option value="rejected">REJECTED</option>
                 </select>
               </div>
             </div>
@@ -448,45 +411,40 @@ function Dashboard() {
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">SPECIES</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">WEIGHT</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">LOCATION</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">TIME</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">ORDER</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">AMOUNT</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">METHOD</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">REFERENCE</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">STATUS</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">DATE</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredRecentCatches.length > 0 ? (
-                  filteredRecentCatches.map((catch_) => (
-                    <tr key={catch_.id} className="border-b border-slate-100 hover:bg-slate-50 dark:bg-slate-900">
+                {filteredPayments.length > 0 ? (
+                  filteredPayments.map((payment) => (
+                    <tr key={payment.id} className="border-b border-slate-100 hover:bg-slate-50 dark:bg-slate-900">
+                      <td className="py-4 px-4 text-slate-900 dark:text-slate-100">#{payment.order_id}</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">${payment.amount.toFixed(2)}</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{payment.method || 'N/A'}</td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{payment.reference || 'N/A'}</td>
                       <td className="py-4 px-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl">{catch_.icon}</span>
-                          <span className="font-semibold text-slate-900 dark:text-slate-100">{catch_.species}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.weight}</td>
-                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.location}</td>
-                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{catch_.time}</td>
-                      <td className="py-4 px-4">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            catch_.status === 'VERIFIED'
-                              ? 'bg-green-100 text-green-700'
-                              : catch_.status === 'PROCESSING'
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'bg-blue-100 text-blue-700'
-                          }`}
-                        >
-                          {catch_.status}
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          payment.status === 'verified'
+                            ? 'bg-green-100 text-green-700'
+                            : payment.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {payment.status ? payment.status.toUpperCase() : 'PENDING'}
                         </span>
                       </td>
+                      <td className="py-4 px-4 text-slate-700 dark:text-slate-300">{new Date(payment.created_at).toLocaleDateString('en-US')}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5" className="py-6 px-4 text-center text-sm text-slate-500 dark:text-slate-400">
-                      No catches match the selected filters.
+                    <td colSpan="6" className="py-6 px-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                      No payments match the selected filters.
                     </td>
                   </tr>
                 )}

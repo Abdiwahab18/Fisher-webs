@@ -81,7 +81,7 @@ function Orders() {
       const response = await api.patch(`/orders/${orderId}/status`, { status: newStatus });
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
-          order.id === orderId ? { ...order, status: response.data.status } : order
+         Number( order.id) ===Number(orderId)  ? { ...order, status: response.data.status } : order
         )
       );
     } catch (err) {
@@ -116,18 +116,15 @@ function Orders() {
       headers.join(','),
       ...filteredOrders.map(order => {
         const date = new Date(order.created_at).toLocaleDateString();
-        const product = order.items?.[0]?.fish_name || 'Mixed catch';
-        return [
-          order.id,
-          `"${date}"`,
-          `"${product}"`,
-          order.user_id,
+            const productName = order.items?.[0]?.fish_name || 'Mixed catch';
+            const productWeight = order.items?.[0]?.weight ? `${order.items[0].weight}kg` : '';
+            const product = productWeight ? `${productName} (${productWeight})` : productName;
           order.status,
           order.payment_status || 'pending',
-          order.total_price.toFixed(2)
-        ].join(',');
-      })
-    ].join('\n');
+          order.total_price.toFixed(2);
+        
+      })].join(',');
+    
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -190,10 +187,11 @@ function Orders() {
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="delivered">Delivered</option>
+                <option value="cancelled">cancelled</option>
+                <option value="rejected">rejected</option>
                 <option value="completed">Completed</option>
-                <option value="pending_verification">Pending Verification</option>
+                 <option value="processing">processing</option>
+               
               </select>
 
               <button
@@ -264,7 +262,8 @@ function Orders() {
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/50">
                   <tr>
@@ -286,8 +285,10 @@ function Orders() {
                           <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{new Date(order.created_at).toLocaleDateString()}</div>
                         </td>
                         <td className="py-4 px-6">
-                          <div className="font-medium text-slate-900 dark:text-white">{order.items?.[0]?.fish_name || 'Mixed catch'}</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{order.items?.length > 1 ? `${order.items.length} items` : '1 item'}</div>
+                          <div className="font-medium text-slate-900 dark:text-white">
+                          {order.items?.[0]?.fish_name || 'Mixed catch'}
+                        </div>
+                        <div className=" text-xs text-slate-500 dark:text-slate-400 mt-1">{ ` ${order.items[0].weight}kg` }</div>
                         </td>
                         <td className="py-4 px-6">
                           <div className="font-medium text-slate-900 dark:text-white">ID: {order.user_id}</div>
@@ -327,26 +328,42 @@ function Orders() {
                         </td>
                         <td className="py-4 px-6 font-bold text-slate-900 dark:text-white">${order.total_price.toFixed(2)}</td>
                         <td className="py-4 px-6">
-                          {canManageOrders && order.status?.toLowerCase() !== 'completed' && order.status?.toLowerCase() !== 'delivered' ? (
-                            <div className="flex flex-col gap-2">
-                              {order.status?.toLowerCase() === 'pending' ? (
-                                <button
-                                  onClick={() => handleStatusUpdate(order.id, 'processing')}
-                                  className="px-3 py-1.5 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 dark:bg-yellow-900/40 dark:hover:bg-yellow-900/60 dark:text-yellow-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
-                                >
-                                  Accept
-                                </button>
-                              ) : order.status?.toLowerCase() === 'processing' ? (
-                                <button
-                                  onClick={() => handleStatusUpdate(order.id, 'completed')}
-                                  className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
-                                >
-                                  Complete
-                                </button>
-                              ) : null}
-                            </div>
+                          {canManageOrders ? (
+                            !['completed', 'delivered', 'cancelled', 'rejected'].includes(order.status?.toLowerCase()) ? (
+                              <div className="flex flex-col gap-2">
+                                {order.status?.toLowerCase() === 'processing' && (
+                                  <button
+                                    onClick={() => handleStatusUpdate(order.id, 'completed')}
+                                    className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                  >
+                                    Complete
+                                  </button>
+                                )}
+                                {order.payment_status?.toLowerCase() !== 'paid' && (
+                                  <button
+                                    onClick={() => handleStatusUpdate(order.id, 'rejected')}
+                                    className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 dark:bg-red-900/40 dark:hover:bg-red-900/60 dark:text-red-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                  >
+                                    Reject
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs italic">No actions</span>
+                            )
                           ) : (
-                            <span className="text-slate-400 text-xs italic">No actions</span>
+                            !['completed', 'delivered', 'cancelled', 'rejected'].includes(order.status?.toLowerCase()) && order.payment_status?.toLowerCase() !== 'paid' ? (
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  onClick={() => handleStatusUpdate(order.id, 'cancelled')}
+                                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 dark:bg-red-900/40 dark:hover:bg-red-900/60 dark:text-red-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                >
+                                  Cancel Order
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs italic">No actions</span>
+                            )
                           )}
                         </td>
                       </tr>
@@ -363,6 +380,104 @@ function Orders() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden flex flex-col divide-y divide-slate-100 dark:divide-slate-700/50">
+              {filteredOrders.length > 0 ? (
+                filteredOrders.map((order) => (
+                  <div key={order.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex flex-col gap-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-semibold text-slate-900 dark:text-white">#{order.id}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{new Date(order.created_at).toLocaleDateString()}</div>
+                      </div>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                        order.status === 'delivered' || order.status === 'completed'
+                          ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800/50 dark:text-green-400'
+                          : order.status === 'pending_verification'
+                          ? 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:border-orange-800/50 dark:text-orange-400'
+                          : order.status === 'pending'
+                          ? 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/20 dark:border-yellow-800/50 dark:text-yellow-400'
+                          : order.status === 'processing'
+                          ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-400'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+                      }`}>
+                        <span className="capitalize">{order.status.replace('_', ' ')}</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50 mt-1">
+                      <div>
+                        <span className="text-xs text-slate-500 block mb-0.5">Product</span>
+                        <span className="font-medium text-slate-900 dark:text-white">
+                          {order.items?.[0]?.fish_name || 'Mixed catch'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-slate-500 block mb-0.5">Customer ID</span>
+                        <span className="font-medium text-slate-900 dark:text-white">{order.user_id}</span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-slate-500 block mb-0.5">Payment</span>
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                          order.payment_status === 'paid' ? 'text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-400' :
+                          order.payment_status === 'pending' ? 'text-yellow-700 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                          order.payment_status === 'failed' ? 'text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400' :
+                          'text-slate-600 bg-slate-100 dark:bg-slate-800 dark:text-slate-400'
+                        }`}>
+                          {order.payment_status || 'pending'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-xs text-slate-500 block mb-0.5">Total</span>
+                        <span className="font-bold text-slate-900 dark:text-white">${order.total_price.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {canManageOrders ? (
+                      !['completed', 'delivered', 'cancelled', 'rejected'].includes(order.status?.toLowerCase()) && (
+                        <div className="mt-1 flex gap-2">
+                          {order.status?.toLowerCase() === 'processing' && (
+                            <button
+                              onClick={() => handleStatusUpdate(order.id, 'completed')}
+                              className="flex-1 py-2 bg-green-100 hover:bg-green-200 text-green-800 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                            >
+                              Mark Complete
+                            </button>
+                          )}
+                          {order.payment_status?.toLowerCase() !== 'paid' && (
+                            <button
+                              onClick={() => handleStatusUpdate(order.id, 'rejected')}
+                              className="flex-1 py-2 bg-red-100 hover:bg-red-200 text-red-800 dark:bg-red-900/40 dark:hover:bg-red-900/60 dark:text-red-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                            >
+                              Reject
+                            </button>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      !['completed', 'delivered', 'cancelled', 'rejected'].includes(order.status?.toLowerCase()) && order.payment_status?.toLowerCase() !== 'paid' && (
+                        <div className="mt-1 flex gap-2">
+                          <button
+                            onClick={() => handleStatusUpdate(order.id, 'cancelled')}
+                            className="flex-1 py-2 bg-red-100 hover:bg-red-200 text-red-800 dark:bg-red-900/40 dark:hover:bg-red-900/60 dark:text-red-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                          >
+                            Cancel Order
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="py-12 text-center text-slate-500 dark:text-slate-400">
+                  <div className="flex flex-col items-center">
+                    <svg className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                    <p>No orders found matching your search.</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 border-t border-slate-100 dark:border-slate-700/50 text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">

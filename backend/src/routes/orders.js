@@ -13,7 +13,8 @@ import {
   getOrderItems,
   createNotification,
   getFishCatchById,
-  reduceFishCatchQuantity
+  reduceFishCatchWeight,
+  restoreFishCatchWeight
 } from '../models/userModel.js';
 
 const router = express.Router();
@@ -63,8 +64,8 @@ router.post('/', authenticateToken, async (req, res) => {
       if (!fishCatch) {
         return res.status(404).json({ message: `Fish catch ${item.fish_id} not found` });
       }
-      const available = Number(fishCatch.quantity) || 0;
-      if (item.quantity > available) {
+      const available = Number(fishCatch.weight) || 0;
+      if (item.weight > available) {
         return res.status(400).json({ message: `Only ${available} kg available for ${fishCatch.fish_name}` });
       }
     }
@@ -81,11 +82,11 @@ router.post('/', authenticateToken, async (req, res) => {
       const orderItem = await createOrderItem({
         order_id: order.id,
         fish_id: item.fish_id,
-        quantity: item.quantity,
+        weight: item.weight,
         price: item.price
       });
       orderItems.push(orderItem);
-      await reduceFishCatchQuantity(item.fish_id, item.quantity);
+      await reduceFishCatchWeight(item.fish_id, item.weight);
     }
 
     await createNotification({
@@ -100,7 +101,7 @@ router.post('/', authenticateToken, async (req, res) => {
       let qty = null;
       try {
         if (items && items.length > 0) {
-          qty = items[0].quantity;
+          qty = items[0].weight;
           const res = await pool.query('SELECT fish_name FROM fish_catches WHERE id = $1', [items[0].fish_id]);
           fishName = res.rows[0]?.fish_name || null;
         }
@@ -113,7 +114,7 @@ router.post('/', authenticateToken, async (req, res) => {
         totalPrice: total_price,
         itemCount: items.length,
         fish_name: fishName,
-        quantity: qty,
+        weight: qty,
         items
       });
     }
@@ -125,29 +126,52 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Update order status (fisherman and admin)
+// Update order status
 router.patch('/:id/status', authenticateToken, async (req, res) => {
   try {
-    if (!['admin', 'fisherman'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Forbidden: only fishermen and admins can update order status' });
-    }
-
-    const { status } = req.body;
-
+    let { status } = req.body;
     if (!status) {
       return res.status(400).json({ message: 'Status is required' });
     }
 
-    if (req.user.role === 'fisherman') {
+    status = String(status).toLowerCase();
+    const validStatuses = ['pending', 'processing', 'cancelled', 'rejected', 'completed', 'delivered', 'pending_verification'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: `Invalid status. Valid values are: ${validStatuses.join(', ')}` });
+    }
+
+    const previousOrder = await getOrderById(req.params.id);
+    if (!previousOrder) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (req.user.role === 'customer') {
+      if (previousOrder.user_id !== req.user.id) {
+        return res.status(403).json({ message: 'Forbidden: you can only update your own orders' });
+      }
+      if (status !== 'cancelled') {
+        return res.status(403).json({ message: 'Forbidden: customers may only cancel orders' });
+      }
+    } else if (req.user.role === 'fisherman') {
       const ownsOrder = await isOrderOwnedByFisherman(req.params.id, req.user.id);
       if (!ownsOrder) {
         return res.status(403).json({ message: 'Forbidden: you can only update orders for your own catches' });
       }
+    } else if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden: only customers, fishermen, and admins can update order status' });
     }
 
     const updatedOrder = await updateOrderStatus(req.params.id, status);
     if (!updatedOrder) {
       return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Restore stock if the order is cancelled or rejected
+    if (['cancelled', 'rejected'].includes(status) && !['cancelled', 'rejected'].includes(previousOrder.status)) {
+      const items = await getOrderItems(req.params.id);
+      for (const item of items) {
+        await restoreFishCatchWeight(item.fish_id, item.weight);
+      }
     }
 
     // Emit notification via WebSocket

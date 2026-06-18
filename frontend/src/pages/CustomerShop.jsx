@@ -76,36 +76,36 @@ function CustomerShop() {
       const matchesCategory = selectedCategory === 'All Categories' || catchItem.fish_name === selectedCategory;
       const matchesLocation = selectedLocation === 'All Locations' || catchItem.location === selectedLocation;
       const matchesPrice = Number(catchItem.price || 0) <= priceRange;
-      const isAvailable = Number(catchItem.quantity) > 0 && catchItem.status !== 'sold';
+      const isAvailable = Number(catchItem.weight) > 0 && catchItem.status !== 'sold';
       return matchesSearch && matchesCategory && matchesLocation && matchesPrice && isAvailable;
     });
 
     setFilteredCatches(filtered);
   };
 
-  const addToCart = (catchItem, quantity) => {
-    const availableStock = Number(catchItem.quantity) || 0;
+  const addToCart = (catchItem, weight) => {
+    const availableStock = Number(catchItem.weight) || 0;
     const existingItem = cart.find(item => item.fish_id === catchItem.id);
     
     if (existingItem) {
-      if (existingItem.quantity + quantity > availableStock) {
+      if (existingItem.weight + weight > availableStock) {
         alert(`Only ${availableStock} kg available in stock.`);
         return;
       }
       setCart(cart.map(item =>
         item.fish_id === catchItem.id
-          ? { ...item, quantity: item.quantity + quantity }
+          ? { ...item, weight: item.weight + weight }
           : item
       ));
     } else {
-      if (quantity > availableStock) {
+      if (weight > availableStock) {
         alert(`Only ${availableStock} kg available in stock.`);
         return;
       }
       setCart([...cart, {
         fish_id: catchItem.id,
         fish_name: catchItem.fish_name,
-        quantity: quantity,
+        weight: weight,
         price: catchItem.price,
         image: catchItem.image,
         availableStock: availableStock
@@ -118,7 +118,7 @@ function CustomerShop() {
   };
 
   const getTotalPrice = () => {
-    return cart.reduce((total, item) => total + (item.quantity * item.price), 0);
+    return cart.reduce((total, item) => total + (item.weight * item.price), 0);
   };
 
   const placeOrder = async () => {
@@ -134,7 +134,7 @@ function CustomerShop() {
         total_price: total,
         items: cart.map(item => ({
           fish_id: item.fish_id,
-          quantity: item.quantity,
+          weight: item.weight,
           price: item.price
         })),
         delivery_info: deliveryInfo
@@ -152,7 +152,7 @@ function CustomerShop() {
         } 
       });
     } catch (err) {
-      setError('Unable to place order.');
+      setError(err.response?.data?.message || 'Unable to place order.');
     }
   };
 
@@ -263,8 +263,8 @@ function CustomerShop() {
 
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-slate-600 dark:text-slate-400">Quantity Available</span>
-                    <span className="font-semibold text-slate-900 dark:text-slate-100">{catch_.quantity} kg</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">Weight Available</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{catch_.weight} kg</span>
                   </div>
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm text-slate-600 dark:text-slate-400">Price per kg</span>
@@ -332,7 +332,7 @@ function CustomerShop() {
                     </div>
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
                       <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Available</p>
-                      <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{selectedCatch.quantity} kg</p>
+                      <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{selectedCatch.weight} kg</p>
                     </div>
                   </div>
                 </div>
@@ -415,11 +415,11 @@ function CustomerShop() {
                           )}
                           <div>
                             <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{item.fish_name}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{item.quantity}kg × ${item.price}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{item.weight}kg × ${item.price}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900 dark:text-slate-100">${(item.quantity * item.price).toFixed(2)}</span>
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">${(item.weight * item.price).toFixed(2)}</span>
                           <button
                             onClick={() => removeFromCart(item.fish_id)}
                             className="text-red-500 hover:text-red-700"

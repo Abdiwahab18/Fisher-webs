@@ -32,7 +32,7 @@ export function useWebSocket() {
     });
 
     socketRef.current.on('order-placed', (data) => {
-      success(`Order placed: ${data.fish_name} x${data.quantity}`);
+      success(`Order placed: ${data.fish_name} x${data.weight}kg`);
     });
 
     socketRef.current.on('order-updated', (data) => {
