@@ -77,7 +77,7 @@ function Sidebar({ activePage, isOpen, onClose }) {
             <span>Dashboard</span>
           </button>
           
-          {(userRole === 'fisherman' || userRole === 'admin') && (
+          {(userRole === 'fisherman') && (
             <button onClick={() => handleNavigate('/fisherman')} className={getNavClass('catches')}>
               <FishIcon />
               <span>Catches</span>

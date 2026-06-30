@@ -64,6 +64,9 @@ router.post('/', authenticateToken, async (req, res) => {
       if (!fishCatch) {
         return res.status(404).json({ message: `Fish catch ${item.fish_id} not found` });
       }
+      if (fishCatch.user_id === req.user.id) {
+        return res.status(400).json({ message: `You cannot purchase your own catch (${fishCatch.fish_name})` });
+      }
       const available = Number(fishCatch.weight) || 0;
       if (item.weight > available) {
         return res.status(400).json({ message: `Only ${available} kg available for ${fishCatch.fish_name}` });

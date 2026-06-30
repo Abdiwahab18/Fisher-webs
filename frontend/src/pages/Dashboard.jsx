@@ -165,9 +165,12 @@ function Dashboard() {
   };
 
   const totalCatchWeight = catches.reduce((sum, item) => sum + (Number(item.weight) || 0), 0);
-  const totalRevenue = orders.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
+  const totalRevenue = orders
+    .filter(item => item.payment_status?.toLowerCase() === 'paid')
+    .reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
   const dailySales = orders
     .filter(order => new Date(order.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000))
+    .filter(order => order.payment_status?.toLowerCase() === 'paid')
     .reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
 
   const filteredPayments = payments.filter((item) => {

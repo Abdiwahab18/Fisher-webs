@@ -214,8 +214,8 @@ function FishermanRecords() {
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Weight (kg) *</label>
                 <input
                   type="number"
-                  step="0.01"
-                  min="0.01"
+                  step="1"
+                  min="2"
                   name="weight"
                   value={formData.weight}
                   onChange={handleInputChange}
@@ -252,6 +252,7 @@ function FishermanRecords() {
                 <input
                   type="date"
                   name="catch_date"
+
                   max={new Date().toISOString().split('T')[0]}
                   value={formData.catch_date}
                   onChange={handleInputChange}

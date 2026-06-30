@@ -112,19 +112,26 @@ function Orders() {
     if (filteredOrders.length === 0) return;
 
     const headers = ['Order ID', 'Date', 'Product', 'Customer ID', 'Status', 'Payment Status', 'Total Price'];
+    const rows = filteredOrders.map(order => {
+      const date = new Date(order.created_at).toLocaleDateString();
+      const productName = order.items?.[0]?.fish_name || 'Mixed catch';
+      const productWeight = order.items?.[0]?.weight ? `${order.items[0].weight}kg` : '';
+      const product = productWeight ? `${productName} (${productWeight})` : productName;
+      return [
+        order.id,
+        date,
+        product,
+        order.user_id,
+        order.status,
+        order.payment_status || 'pending',
+        order.total_price.toFixed(2)
+      ];
+    });
+
     const csvContent = [
       headers.join(','),
-      ...filteredOrders.map(order => {
-        const date = new Date(order.created_at).toLocaleDateString();
-            const productName = order.items?.[0]?.fish_name || 'Mixed catch';
-            const productWeight = order.items?.[0]?.weight ? `${order.items[0].weight}kg` : '';
-            const product = productWeight ? `${productName} (${productWeight})` : productName;
-          order.status,
-          order.payment_status || 'pending',
-          order.total_price.toFixed(2);
-        
-      })].join(',');
-    
+      ...rows.map(r => r.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -134,12 +141,16 @@ function Orders() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const totalOrders = orders.length;
   const pendingOrders = orders.filter((order) => order.status?.toLowerCase() === 'pending').length;
   const completedOrders = orders.filter((order) => ['delivered', 'completed'].includes(order.status?.toLowerCase())).length;
-  const totalRevenue = orders.reduce((total, order) => total + (Number(order.total_price) || 0), 0).toFixed(2);
+  const totalRevenue = orders
+    .filter(order => order.payment_status?.toLowerCase() === 'paid')
+    .reduce((total, order) => total + (Number(order.total_price) || 0), 0)
+    .toFixed(2);
 
   return (
     <Layout activePage="orders" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans">
@@ -286,9 +297,13 @@ function Orders() {
                         </td>
                         <td className="py-4 px-6">
                           <div className="font-medium text-slate-900 dark:text-white">
-                          {order.items?.[0]?.fish_name || 'Mixed catch'}
-                        </div>
-                        <div className=" text-xs text-slate-500 dark:text-slate-400 mt-1">{ ` ${order.items[0].weight}kg` }</div>
+                            {order.items?.[0]?.fish_name || 'Mixed catch'}
+                          </div>
+                          {order.items?.[0]?.weight !== undefined && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                              {`${order.items[0].weight}kg`}
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-6">
                           <div className="font-medium text-slate-900 dark:text-white">ID: {order.user_id}</div>

@@ -38,6 +38,7 @@ function Market() {
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
   const isAuthenticated = !!localStorage.getItem('fisher_token');
+  const currentUserId = localStorage.getItem('fisher_user_id') ? Number(localStorage.getItem('fisher_user_id')) : null;
 
   useEffect(() => {
     loadCatches();
@@ -103,6 +104,11 @@ function Market() {
       return;
     }
 
+    if (currentUserId && catchItem.user_id === currentUserId) {
+      alert("You cannot purchase your own catch.");
+      return;
+    }
+
     const availableStock = Number( catchItem.weight) || 0;
 
     const existingItem = cart.find(item => item.id === catchItem.id);
@@ -138,6 +144,11 @@ function Market() {
   const handleBuyNow = async (catchItem) => {
     if (!isAuthenticated) {
       setShowGuestModal(true);
+      return;
+    }
+
+    if (currentUserId && catchItem.user_id === currentUserId) {
+      alert("You cannot purchase your own catch.");
       return;
     }
 
@@ -519,6 +530,7 @@ function Market() {
                 const weight = Number(catchItem.weight ) || 0;
                 const isOutOfStock = weight <= 0;
                 const isPremium = catchItem.status !== 'fresh';
+                const isOwnCatch = currentUserId && catchItem.user_id === currentUserId;
 
                 return (
                   <article
@@ -599,25 +611,25 @@ function Market() {
                       <div className="mt-4 grid grid-cols-2 gap-2">
                         <button
                           onClick={() => addToCart(catchItem)}
-                          disabled={isOutOfStock}
+                          disabled={isOutOfStock || isOwnCatch}
                           className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                            isOutOfStock
+                            (isOutOfStock || isOwnCatch)
                               ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500'
                               : 'bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
                           }`}
                         >
-                          Add to Cart
+                          {isOwnCatch ? 'Your Catch' : 'Add to Cart'}
                         </button>
                         <button
                           onClick={() => handleBuyNow(catchItem)}
-                          disabled={isOutOfStock}
+                          disabled={isOutOfStock || isOwnCatch}
                           className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                            isOutOfStock
+                            (isOutOfStock || isOwnCatch)
                               ? 'cursor-not-allowed bg-slate-300 text-slate-500'
                               : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500'
                           }`}
                         >
-                          Buy Now
+                          {isOwnCatch ? 'Your Catch' : 'Buy Now'}
                         </button>
                       </div>
                     </div>

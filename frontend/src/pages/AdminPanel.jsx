@@ -187,7 +187,9 @@ function AdminPanel() {
     URL.revokeObjectURL(url);
   };
 
-  const totalRevenue = orders.reduce((sum, order) => sum + (Number(order.total_price) || 0), 0);
+  const totalRevenue = orders
+    .filter(order => order.payment_status?.toLowerCase() === 'paid')
+    .reduce((sum, order) => sum + (Number(order.total_price) || 0), 0);
   const activeOrders = orders.filter(order => order.status && !['delivered', 'completed'].includes(order.status.toLowerCase()));
 
   return (
@@ -226,8 +228,8 @@ function AdminPanel() {
 
           <div className="bg-slate-900 rounded-2xl p-6 shadow-md">
             <p className="text-slate-400 text-xs font-semibold uppercase">Total Revenue</p>
-            <p className="text-3xl font-bold text-white mt-2">${orders.reduce((sum, o) => sum + (o.total_price || 0), 0).toLocaleString()}</p>
-            <p className="text-slate-400 text-xs mt-3">From all orders</p>
+            <p className="text-3xl font-bold text-white mt-2">${totalRevenue.toLocaleString()}</p>
+            <p className="text-slate-400 text-xs mt-3">From paid orders</p>
           </div>
         </div>
 

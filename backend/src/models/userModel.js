@@ -78,7 +78,7 @@ export async function getSystemStats() {
       (SELECT COUNT(*) FROM users WHERE role = 'fisherman') as total_fishermen,
       (SELECT COUNT(*) FROM users WHERE role = 'customer') as total_customers,
       (SELECT COUNT(*) FROM orders) as total_orders,
-      (SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status IN ('completed', 'delivered')) as total_revenue,
+      (SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status IN ('completed', 'delivered') AND payment_status = 'paid') as total_revenue,
       (SELECT COUNT(*) FROM fish_catches) as total_catches,
       (SELECT COUNT(*) FROM orders WHERE status = 'pending') as pending_orders,
       (SELECT COUNT(*) FROM orders WHERE status IN ('completed', 'delivered')) as completed_orders
@@ -93,7 +93,7 @@ export async function getRevenueByDay(days = 7) {
       COALESCE(SUM(total_price), 0) as revenue,
       COUNT(*) as order_count
     FROM orders
-    WHERE created_at >= NOW() - INTERVAL '1 day' * $1
+    WHERE created_at >= NOW() - INTERVAL '1 day' * $1 AND payment_status = 'paid'
     GROUP BY DATE(created_at)
     ORDER BY date ASC
   `, [days]);

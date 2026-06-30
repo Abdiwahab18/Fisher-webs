@@ -19,6 +19,7 @@ function CustomerShop() {
   const [deliveryInfo, setDeliveryInfo] = useState('');
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
+  const currentUserId = localStorage.getItem('fisher_user_id') ? Number(localStorage.getItem('fisher_user_id')) : null;
 
   useEffect(() => {
     loadFavorites();
@@ -84,6 +85,10 @@ function CustomerShop() {
   };
 
   const addToCart = (catchItem, weight) => {
+    if (currentUserId && catchItem.user_id === currentUserId) {
+      alert("You cannot purchase your own catch.");
+      return;
+    }
     const availableStock = Number(catchItem.weight) || 0;
     const existingItem = cart.find(item => item.fish_id === catchItem.id);
     
@@ -278,9 +283,14 @@ function CustomerShop() {
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={() => addToCart(catch_, 1)}
-                    className="w-full bg-cyan-500 text-white py-2 rounded-lg font-semibold hover:bg-cyan-600 text-sm"
+                    disabled={catch_.user_id === currentUserId}
+                    className={`w-full py-2 rounded-lg font-semibold text-sm transition-all ${
+                      catch_.user_id === currentUserId
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500'
+                        : 'bg-cyan-500 text-white hover:bg-cyan-600'
+                    }`}
                   >
-                    Add to Cart
+                    {catch_.user_id === currentUserId ? 'Your Catch' : 'Add to Cart'}
                   </button>
                   <button
                     onClick={() => openDetails(catch_)}
@@ -369,9 +379,14 @@ function CustomerShop() {
                         addToCart(selectedCatch, 1);
                         closeDetails();
                       }}
-                      className="w-full bg-cyan-500 text-white py-3 rounded-2xl font-semibold hover:bg-cyan-600"
+                      disabled={selectedCatch.user_id === currentUserId}
+                      className={`w-full py-3 rounded-2xl font-semibold transition-all ${
+                        selectedCatch.user_id === currentUserId
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500'
+                          : 'bg-cyan-500 text-white hover:bg-cyan-600'
+                      }`}
                     >
-                      Add to cart
+                      {selectedCatch.user_id === currentUserId ? 'Your Catch' : 'Add to cart'}
                     </button>
                     <button
                       onClick={() => toggleFavorite(selectedCatch)}
