@@ -15,6 +15,11 @@ function Register() {
     event.preventDefault();
     setMessage('');
 
+    if (/\d/.test(name)) {
+      setMessage('Name cannot contain numbers!');
+      return;
+    }
+
     if (password.length < 8) {
       setMessage('Password must be at least 8 characters long!');
       return;

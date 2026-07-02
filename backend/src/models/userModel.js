@@ -102,6 +102,35 @@ export async function getRevenueByDay(days = 7) {
 
 
 // Fish catches functions
+export async function findActiveCatchBySpeciesAndUser(userId, fishName) {
+  const result = await pool.query(
+    `SELECT * FROM fish_catches 
+     WHERE user_id = $1 
+       AND LOWER(TRIM(fish_name)) = LOWER(TRIM($2)) 
+       AND status = 'listed'
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+    [userId, fishName]
+  );
+  return result.rows[0];
+}
+
+export async function incrementCatchWeight(id, additionalWeight, { price, location, image, catch_date }) {
+  const result = await pool.query(
+    `UPDATE fish_catches
+     SET weight = weight + $1,
+         price = COALESCE($2, price),
+         location = COALESCE($3, location),
+         image = COALESCE($4, image),
+         catch_date = COALESCE($5, catch_date),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $6
+     RETURNING *`,
+    [additionalWeight, price, location, image, catch_date, id]
+  );
+  return result.rows[0];
+}
+
 export async function createFishCatch({ fish_name, weight, price, location, image, catch_date, user_id }) {
   const result = await pool.query(
     'INSERT INTO fish_catches (fish_name, weight, price, location, image, catch_date, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',

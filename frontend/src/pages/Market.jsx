@@ -40,6 +40,7 @@ function Market() {
   const isAuthenticated = !!localStorage.getItem('fisher_token');
   const currentUserId = localStorage.getItem('fisher_user_id') ? Number(localStorage.getItem('fisher_user_id')) : null;
 
+
   useEffect(() => {
     loadCatches();
     loadFishermen();

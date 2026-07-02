@@ -10,6 +10,8 @@ function FishermanRecords() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [showSpeciesDropdown, setShowSpeciesDropdown] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
   const [formData, setFormData] = useState({
@@ -57,6 +59,12 @@ function FishermanRecords() {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('Only image files are allowed!');
+        setTimeout(() => setError(''), 3000);
+        e.target.value = ''; // Clear input
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData(prev => ({ ...prev, image: reader.result }));
@@ -75,6 +83,53 @@ function FishermanRecords() {
     }
     if (parseFloat(formData.price) <= 0) {
       setError('Price must be greater than 0.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    if (!formData.image) {
+      setError('Catch image is required.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    if (formData.image.startsWith('data:') && !formData.image.startsWith('data:image/')) {
+      setError('Only image files are allowed.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    if (!formData.catch_date) {
+      setError('Catch date is required.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    const inputDate = new Date(formData.catch_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const minDate = new Date();
+    minDate.setDate(today.getDate() - 20);
+    minDate.setHours(0, 0, 0, 0);
+
+    const maxDate = new Date();
+    maxDate.setHours(23, 59, 59, 999);
+
+    if (isNaN(inputDate.getTime())) {
+      setError('Invalid catch date.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    if (inputDate < minDate) {
+      setError('Catch date cannot be older than 20 days ago.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    if (inputDate > maxDate) {
+      setError('Catch date cannot be in the future.');
       setTimeout(() => setError(''), 3000);
       return;
     }
@@ -132,6 +187,31 @@ function FishermanRecords() {
 
   const totalValue = catches.reduce((sum, c) => sum + (parseFloat(c.price) * parseFloat(c.weight) || 0), 0);
   const activeCatches = catches.filter(c => c.status !== 'sold').length;
+
+  const defaultSpecies = ['Salmon', 'Tuna', 'Cod', 'Mackerel', 'Snapper'];
+  const uniqueSpecies = Array.from(
+    new Set([
+      ...defaultSpecies,
+      ...catches.map((c) => c.fish_name)
+    ].filter(Boolean))
+  );
+
+  const uniqueLocations = Array.from(
+    new Set(catches.map((c) => c.location).filter(Boolean))
+  );
+
+  const filteredSpecies = uniqueSpecies
+    .filter((s) => s.toLowerCase().includes((formData.fish_name || '').toLowerCase()))
+    .slice(0, 10);
+
+  const filteredLocations = uniqueLocations
+    .filter((loc) => loc.toLowerCase().includes((formData.location || '').toLowerCase()))
+    .slice(0, 10);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const minDateVal = new Date();
+  minDateVal.setDate(minDateVal.getDate() - 20);
+  const minDateStr = minDateVal.toISOString().split('T')[0];
 
   return (
     <Layout activePage="catches" className="bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
@@ -192,23 +272,36 @@ function FishermanRecords() {
               {editingId ? 'Edit Catch' : 'Log New Catch'}
             </h2>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Fish Species *</label>
-                <select
+                <input
+                  type="text"
                   name="fish_name"
                   value={formData.fish_name}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700"
+                  onFocus={() => setShowSpeciesDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowSpeciesDropdown(false), 200)}
+                  placeholder="Type or select species..."
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700 dark:text-slate-100"
                   required
-                >
-                  <option value="">Select a species</option>
-                  <option value="Salmon">Salmon</option>
-                  <option value="Tuna">Tuna</option>
-                  <option value="Cod">Tarraqad</option>
-                  <option value="Mackerel">Mackerel</option>
-                  <option value="Snapper">Snapper</option>
-                  <option value="Other">Other</option>
-                </select>
+                  autoComplete="off"
+                />
+                {showSpeciesDropdown && filteredSpecies.length > 0 && (
+                  <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg">
+                    {filteredSpecies.map(species => (
+                      <li
+                        key={species}
+                        onMouseDown={() => {
+                          setFormData(prev => ({ ...prev, fish_name: species }));
+                          setShowSpeciesDropdown(false);
+                        }}
+                        className="px-4 py-2.5 hover:bg-cyan-50 dark:hover:bg-slate-700 cursor-pointer text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors"
+                      >
+                        {species}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Weight (kg) *</label>
@@ -219,7 +312,7 @@ function FishermanRecords() {
                   name="weight"
                   value={formData.weight}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700 dark:text-slate-100"
                   required
                 />
               </div>
@@ -232,40 +325,62 @@ function FishermanRecords() {
                   name="price"
                   value={formData.price}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700 dark:text-slate-100"
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Location</label>
+              <div className="relative">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Location *</label>
                 <input
                   type="text"
                   name="location"
                   value={formData.location}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500"
+                  onFocus={() => setShowLocationDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowLocationDropdown(false), 200)}
+                  placeholder="Type or select location..."
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700 dark:text-slate-100"
                   required
+                  autoComplete="off"
                 />
+                {showLocationDropdown && filteredLocations.length > 0 && (
+                  <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg">
+                    {filteredLocations.map(loc => (
+                      <li
+                        key={loc}
+                        onMouseDown={() => {
+                          setFormData(prev => ({ ...prev, location: loc }));
+                          setShowLocationDropdown(false);
+                        }}
+                        className="px-4 py-2.5 hover:bg-cyan-50 dark:hover:bg-slate-700 cursor-pointer text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors"
+                      >
+                        {loc}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Catch Date</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Catch Date *</label>
                 <input
                   type="date"
                   name="catch_date"
-
-                  max={new Date().toISOString().split('T')[0]}
+                  min={minDateStr}
+                  max={todayStr}
                   value={formData.catch_date}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300 dark:bg-slate-700"
+                  required
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Image Upload </label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Image Upload *</label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handleImageChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300 dark:bg-slate-700"
+                  required={!editingId}
                 />
                 {formData.image && (
                   <div className="mt-4">
