@@ -2,9 +2,16 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { useNotification } from '../context/NotificationContext';
+import DriverDashboard from './DriverDashboard';
 
 import Layout from '../components/Layout';
 function Dashboard() {
+  const userRole = localStorage.getItem('fisher_role');
+
+  if (userRole === 'driver') {
+    return <DriverDashboard />;
+  }
+
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('week');
@@ -19,7 +26,6 @@ function Dashboard() {
   const [earningsTrends, setEarningsTrends] = useState([]);
   const [favoriteCount, setFavoriteCount] = useState(0);
   const navigate = useNavigate();
-  const userRole = localStorage.getItem('fisher_role');
   const isAdmin = userRole === 'admin';
   const isFisherman = userRole === 'fisherman';
 
@@ -48,10 +54,15 @@ function Dashboard() {
         price: Number(item.price) || 0,
         status: String(item.status || 'listed').toLowerCase(),
       }));
-      const ordersData = (ordersRes.data || []).map(item => ({
-        ...item,
-        total_price: Number(item.total_price) || 0,
-      }));
+      const ordersData = (ordersRes.data || [])
+        .filter(item => {
+          if (userRole !== 'customer' && userRole !== 'fisherman') return true;
+          return String(item.payment_status || '').toLowerCase() === 'paid';
+        })
+        .map(item => ({
+          ...item,
+          total_price: Number(item.total_price) || 0,
+        }));
       const paymentsData = (paymentsRes.data || []).map(item => ({
         ...item,
         amount: Number(item.amount) || 0,

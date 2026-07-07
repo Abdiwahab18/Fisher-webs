@@ -41,6 +41,19 @@ function Checkout() {
     }
   };
 
+  const handleAutopilotCheckout = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await api.post(`/orders/${orderId}/autopilot`);
+      alert('Autopilot started! The order will be automatically paid, assigned to a driver, picked up, and delivered in real-time. Check your dashboard notifications!');
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to start autopilot');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl shadow-xl overflow-hidden">
@@ -108,6 +121,14 @@ function Checkout() {
                 'Pay Now'
               )}
             </button>
+
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+              <span className="flex-shrink mx-4 text-slate-400 text-xs font-semibold uppercase">Or Automate</span>
+              <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+            </div>
+
+           
           </form>
         </div>
       </div>

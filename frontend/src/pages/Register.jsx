@@ -110,6 +110,7 @@ function Register() {
             >
               <option value="customer">Customer</option>
               <option value="fisherman">Fisherman</option>
+              <option value="driver">Driver</option>
               <option value="admin">Admin</option>
             </select>
           </div>

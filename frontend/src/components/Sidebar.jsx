@@ -78,21 +78,31 @@ function Sidebar({ activePage, isOpen, onClose }) {
           </button>
           
           {(userRole === 'fisherman') && (
-            <button onClick={() => handleNavigate('/fisherman')} className={getNavClass('catches')}>
-              <FishIcon />
-              <span>Catches</span>
+            <>
+              <button onClick={() => handleNavigate('/fisherman')} className={getNavClass('catches')}>
+                <FishIcon />
+                <span>Catches</span>
+              </button>
+              <button onClick={() => handleNavigate('/fisherman/drivers')} className={getNavClass('drivers')}>
+                <OrdersIcon />
+                <span>Drivers</span>
+              </button>
+            </>
+          )}
+          
+          {userRole !== 'driver' && (
+            <button onClick={() => handleNavigate('/market')} className={getNavClass('market')}>
+              <MarketIcon />
+              <span>Market</span>
             </button>
           )}
           
-          <button onClick={() => handleNavigate('/market')} className={getNavClass('market')}>
-            <MarketIcon />
-            <span>Market</span>
-          </button>
-          
-          <button onClick={() => handleNavigate('/orders')} className={getNavClass('orders')}>
-            <OrdersIcon />
-            <span>Orders</span>
-          </button>
+          {userRole !== 'driver' && (
+            <button onClick={() => handleNavigate('/orders')} className={getNavClass('orders')}>
+              <OrdersIcon />
+              <span>Orders</span>
+            </button>
+          )}
           
           {userRole === 'admin' && (
             <>

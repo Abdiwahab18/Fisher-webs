@@ -14,6 +14,7 @@ import AdminPanel from './pages/AdminPanel';
 import Orders from './pages/Orders';
 import CustomerShop from './pages/CustomerShop';
 import FishermanRecords from './pages/FishermanRecords';
+import FishermanDrivers from './pages/FishermanDrivers';
 import Market from './pages/Market';
 import Settings from './pages/Settings';
 import Checkout from './pages/Checkout';
@@ -97,6 +98,15 @@ function AppContent() {
           element={
             <ProtectedRoute role="fisherman">
               <FishermanRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/fisherman/drivers"
+          element={
+            <ProtectedRoute role="fisherman">
+              <FishermanDrivers />
             </ProtectedRoute>
           }
         />

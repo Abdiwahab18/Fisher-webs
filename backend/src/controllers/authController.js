@@ -53,3 +53,39 @@ export async function login(req, res) {
 
   res.json({ token, role: user.role, userId: user.id });
 }
+
+export async function demoLogin(req, res) {
+  try {
+    const { role } = req.body;
+    const validRoles = ['customer', 'fisherman', 'driver', 'admin'];
+    if (!role || !validRoles.includes(role)) {
+      return res.status(400).json({ message: 'Invalid or missing role' });
+    }
+
+    const email = `demo_${role}@fisher.com`;
+    const password = 'demopass123';
+
+    let user = await findUserByEmail(email);
+    if (!user) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      user = await createUser({
+        name: `Demo ${role.charAt(0).toUpperCase() + role.slice(1)}`,
+        email,
+        password: hashedPassword,
+        role,
+        profile_picture: null
+      });
+      console.log(`Created demo user for role: ${role}`);
+    }
+
+    const payload = { id: user.id, role: user.role, name: user.name };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: process.env.TOKEN_EXPIRES_IN || '24h',
+    });
+
+    res.json({ token, role: user.role, userId: user.id });
+  } catch (error) {
+    console.error('Demo login error:', error);
+    res.status(500).json({ message: 'Server error during demo login' });
+  }
+}

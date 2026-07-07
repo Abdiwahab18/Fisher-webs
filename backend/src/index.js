@@ -10,6 +10,7 @@ import orderRoutes from './routes/orders.js';
 import earningsRoutes from './routes/earnings.js';
 import notificationsRoutes from './routes/notifications.js';
 import paymentsRoutes from './routes/payments.js';
+import driversRoutes from './routes/drivers.js';
 import { migrate } from '../migrate.js';
 
 dotenv.config();
@@ -42,6 +43,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/earnings', earningsRoutes);
+app.use('/api/drivers', driversRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'FishMarket API is running' });

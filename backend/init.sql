@@ -39,6 +39,25 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_status VARCHAR(50) DEFAULT 'pending',
   delivery_info TEXT,
   order_type VARCHAR(50) DEFAULT 'purchase',
+  driver_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  delivery_status VARCHAR(50) DEFAULT 'pending',
+  delivery_confirmed BOOLEAN DEFAULT FALSE,
+  customer_confirmed BOOLEAN DEFAULT FALSE,
+  estimated_delivery_time VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS delivery_drivers (
+  id SERIAL PRIMARY KEY,
+  fisherman_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  phone VARCHAR(50),
+  vehicle_type VARCHAR(100),
+  vehicle_number VARCHAR(100),
+  vehicle_color VARCHAR(50),
+  status VARCHAR(50) DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

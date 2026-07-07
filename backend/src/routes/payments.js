@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import pool from '../config/db.js';
-import { createNotification } from '../models/userModel.js';
+import { assignOrderToDriver, createNotification } from '../models/userModel.js';
 
 const router = express.Router();
 
@@ -108,8 +108,9 @@ router.post('/waafi', authenticateToken, async (req, res) => {
         [transactionId, orderId]
       );
 
-      // Notify user
       const io = req.app.get('io');
+      await assignOrderToDriver(orderId, io);
+
       await createNotification({
         user_id: req.user.id,
         message: `Your payment for order #${orderId} was successful. Order is now processing.`,
@@ -167,8 +168,11 @@ router.patch('/:id/verify', authenticateToken, async (req, res) => {
       [orderStatus, paymentStatus, payment.order_id]
     );
 
-    // Notify user
     const io = req.app.get('io');
+    if (orderStatus === 'processing') {
+      await assignOrderToDriver(payment.order_id, io);
+    }
+
     const msg = status === 'verified' 
       ? `Your payment for order #${payment.order_id} has been verified. Order is now processing.`
       : `Your payment for order #${payment.order_id} was rejected. Order cancelled.`;

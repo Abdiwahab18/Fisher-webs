@@ -9,6 +9,8 @@ function Market() {
   const [fishermen, setFishermen] = useState([]);
   const [error, setError] = useState('');
   const [cart, setCart] = useState([]);
+  const [cartOwnerId, setCartOwnerId] = useState(null);
+  const [cartOwnerName, setCartOwnerName] = useState('');
   const [showCart, setShowCart] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [cartMessages, setCartMessages] = useState({});
@@ -110,15 +112,23 @@ function Market() {
       return;
     }
 
-    const availableStock = Number( catchItem.weight) || 0;
+    const availableStock = Number(catchItem.weight) || 0;
+    const newCart = cartOwnerId && cartOwnerId !== catchItem.fisherman_id ? [] : cart;
+    const newOwnerName = catchItem.fisherman_name || '';
 
-    const existingItem = cart.find(item => item.id === catchItem.id);
+    if (cartOwnerId && cartOwnerId !== catchItem.fisherman_id) {
+      setCart([]);
+      setCartOwnerId(catchItem.fisherman_id);
+      setCartOwnerName(newOwnerName);
+    }
+
+    const existingItem = newCart.find(item => item.id === catchItem.id);
     if (existingItem) {
       if (existingItem.weight + 1 > availableStock) {
         alert(`Only ${availableStock} kg available in stock.`);
         return;
       }
-      setCart(cart.map(item =>
+      setCart(newCart.map(item =>
         item.id === catchItem.id
           ? { ...item, weight: item.weight + 1 }
           : item
@@ -128,14 +138,19 @@ function Market() {
         alert('Item is out of stock.');
         return;
       }
-      setCart([...cart, {
+      setCart([...newCart, {
         id: catchItem.id,
         fish_name: catchItem.fish_name,
         weight: 1,
         price: Number(catchItem.price) || 0,
         location: catchItem.location,
-        availableStock: availableStock
-      }]);
+        availableStock: availableStock,
+        fisherman_id: catchItem.fisherman_id
+      }] );
+      if (!cartOwnerId || cartOwnerId !== catchItem.fisherman_id) {
+        setCartOwnerId(catchItem.fisherman_id);
+        setCartOwnerName(newOwnerName);
+      }
     }
 
     setCartFeedback(`${catchItem.fish_name} added to cart`);
@@ -296,7 +311,12 @@ function Market() {
   };
 
   const selectFisherman = (fishermanId) => {
+    const fisherman = fishermen.find((f) => f.id === fishermanId);
     setSelectedFishermanId(fishermanId);
+    setCart([]);
+    setCartOwnerId(fishermanId);
+    setCartOwnerName(fisherman?.name || '');
+    setShowCart(false);
     setSearchTerm('');
     setSelectedSpecies('All Species');
     setSelectedLocation('Global Markets');
@@ -307,6 +327,10 @@ function Market() {
 
   const goBackToFishermen = () => {
     setSelectedFishermanId(null);
+    setCart([]);
+    setCartOwnerId(null);
+    setCartOwnerName('');
+    setShowCart(false);
     setSearchTerm('');
     setSelectedSpecies('All Species');
     setSelectedLocation('Global Markets');
@@ -314,6 +338,13 @@ function Market() {
     setFreshness('All');
     setShowFilters(false);
   };
+
+  useEffect(() => {
+    setCart([]);
+    setCartOwnerId(null);
+    setCartOwnerName('');
+    setShowCart(false);
+  }, [selectedFishermanId]);
 
   const selectedFisherman = fishermen.find((f) => f.id === selectedFishermanId);
 
@@ -357,7 +388,8 @@ function Market() {
                             alt={fisherman.name}
                             className="h-full w-full object-cover bg-slate-100"
                           />
-                        )}
+                        )
+                        }
                       </div>
 
                       <h3 className="text-sm font-bold text-slate-900 dark:text-white">{fisherman.name}</h3>
@@ -664,7 +696,12 @@ function Market() {
       {showCart && (
         <div className="fixed right-0 top-0 h-screen w-80 bg-white dark:bg-slate-800 shadow-2xl z-50 flex flex-col">
           <div className="bg-slate-900 text-white p-6 flex justify-between items-center">
-            <h2 className="text-xl font-bold">Shopping Cart</h2>
+            <div>
+              <h2 className="text-xl font-bold">Shopping Cart</h2>
+              {cartOwnerName && (
+                <p className="text-sm text-slate-300">{cartOwnerName}'s cart</p>
+              )}
+            </div>
             <button onClick={() => setShowCart(false)} className="text-xl hover:text-slate-300">✕</button>
           </div>
 
@@ -758,17 +795,19 @@ function Market() {
       )}
 
       {/* Cart Button */}
-      <button
-        onClick={() => setShowCart(!showCart)}
-        className="fixed bottom-8 right-8 w-14 h-14 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-xl flex items-center justify-center text-xl transition-all hover:scale-105 z-40"
-      >
-        🛒
-        {cart.length > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white">
-            {getTotalItems()}
-          </span>
-        )}
-      </button>
+      {selectedFishermanId && (
+        <button
+          onClick={() => setShowCart(!showCart)}
+          className="fixed bottom-8 right-8 w-14 h-14 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-xl flex items-center justify-center text-xl transition-all hover:scale-105 z-40"
+        >
+          🛒
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white">
+              {getTotalItems()}
+            </span>
+          )}
+        </button>
+      )}
     </Layout>
   );
 }

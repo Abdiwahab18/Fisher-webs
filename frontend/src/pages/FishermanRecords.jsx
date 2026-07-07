@@ -38,6 +38,7 @@ function FishermanRecords() {
     }
   };
 
+
   const resetForm = () => {
     setFormData({
       fish_name: '',
@@ -179,6 +180,8 @@ function FishermanRecords() {
     }
   };
 
+
+
   const handleLogout = () => {
     localStorage.removeItem('fisher_token');
     localStorage.removeItem('fisher_role');
@@ -226,7 +229,7 @@ function FishermanRecords() {
 
         {/* Messages */}
         {successMessage && (
-          <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+          <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg whitespace-pre-line">
             {successMessage}
           </div>
         )}
@@ -464,7 +467,7 @@ function FishermanRecords() {
                   <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">LOCATION</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">DATE</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">STATUS</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">ACTIONS</th>
+                  {/* <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">ACTIONS</th> */}
                 </tr>
               </thead>
               <tbody>
@@ -510,12 +513,12 @@ function FishermanRecords() {
                           >
                             Edit
                           </button> */}
-                          <button
+                          {/* <button
                             onClick={() => setDeleteConfirm(catch_.id)}
                             className="text-red-600 hover:text-red-800 font-semibold text-xs"
                           >
                             Delete
-                          </button>
+                          </button> */}
                         </div>
                       </td>
                     </tr>
@@ -592,6 +595,7 @@ function FishermanRecords() {
           </div>
         </div>
       </div>
+
     </Layout>
   );
 }

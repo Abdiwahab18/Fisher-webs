@@ -35,9 +35,15 @@ export async function migrate() {
     await pool.query(`
       ALTER TABLE orders
       ADD COLUMN IF NOT EXISTS delivery_info TEXT,
-      ADD COLUMN IF NOT EXISTS order_type VARCHAR(50) DEFAULT 'purchase'
+      ADD COLUMN IF NOT EXISTS order_type VARCHAR(50) DEFAULT 'purchase',
+      ADD COLUMN IF NOT EXISTS driver_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(50) DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS delivery_confirmed BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS customer_confirmed BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS estimated_delivery_time VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     `);
-    console.log('✓ Order metadata fields added to orders table');
+    console.log('✓ Order metadata and delivery fields added to orders table');
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS notifications (
@@ -49,6 +55,23 @@ export async function migrate() {
       )
     `);
     console.log('✓ Notifications table created');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS delivery_drivers (
+        id SERIAL PRIMARY KEY,
+        fisherman_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        phone VARCHAR(50),
+        vehicle_type VARCHAR(100),
+        vehicle_number VARCHAR(100),
+        vehicle_color VARCHAR(50),
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✓ Delivery driver registry table created');
 
     // Migrate quantity to weight
     try {
