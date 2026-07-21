@@ -9,13 +9,24 @@ CREATE TABLE IF NOT EXISTS users (
   role VARCHAR(50) NOT NULL,
   profile_picture TEXT,
   status VARCHAR(50) NOT NULL DEFAULT 'active',
+  phone VARCHAR(50),
+  whatsapp VARCHAR(50),
+  facebook VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Fish species table
+CREATE TABLE IF NOT EXISTS fish_species (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Fish catches table
 CREATE TABLE IF NOT EXISTS fish_catches (
   id SERIAL PRIMARY KEY,
-  fish_name VARCHAR(100) NOT NULL,
+  fish_species_id INTEGER REFERENCES fish_species(id) ON DELETE CASCADE,
   weight DECIMAL(10,2) NOT NULL,
   price DECIMAL(10,2) NOT NULL,
   location VARCHAR(255),

@@ -6,7 +6,7 @@ export async function findUserByEmail(email) {
 }
 
 export async function findUserById(id) {
-  const result = await pool.query('SELECT id, name, email, role, profile_picture, status FROM users WHERE id = $1', [id]);
+  const result = await pool.query('SELECT id, name, email, role, profile_picture, status, phone, whatsapp, facebook FROM users WHERE id = $1', [id]);
   return result.rows[0];
 }
 
@@ -41,7 +41,7 @@ export async function updateUserStatus(id, status) {
   return result.rows[0];
 }
 
-export async function updateUserProfile(id, { name, email, profile_picture }) {
+export async function updateUserProfile(id, { name, email, profile_picture, phone, whatsapp, facebook }) {
   const updates = [];
   const values = [];
   let paramCount = 1;
@@ -61,12 +61,27 @@ export async function updateUserProfile(id, { name, email, profile_picture }) {
     values.push(profile_picture);
   }
 
+  if (phone !== undefined) {
+    updates.push(`phone = $${paramCount++}`);
+    values.push(phone);
+  }
+
+  if (whatsapp !== undefined) {
+    updates.push(`whatsapp = $${paramCount++}`);
+    values.push(whatsapp);
+  }
+
+  if (facebook !== undefined) {
+    updates.push(`facebook = $${paramCount++}`);
+    values.push(facebook);
+  }
+
   if (updates.length === 0) {
     return null;
   }
 
   values.push(id);
-  const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, name, email, role, profile_picture, status`;
+  const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, name, email, role, profile_picture, status, phone, whatsapp, facebook`;
   const result = await pool.query(query, values);
   return result.rows[0];
 }
@@ -100,477 +115,9 @@ export async function getRevenueByDay(days = 7) {
   return result.rows;
 }
 
-
-// Fish catches functions
-export async function findActiveCatchBySpeciesAndUser(userId, fishName) {
+export async function getAdminContact() {
   const result = await pool.query(
-    `SELECT * FROM fish_catches 
-     WHERE user_id = $1 
-       AND LOWER(TRIM(fish_name)) = LOWER(TRIM($2)) 
-       AND status = 'listed'
-     ORDER BY created_at DESC 
-     LIMIT 1`,
-    [userId, fishName]
+    "SELECT name, email, phone, whatsapp, facebook FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1"
   );
   return result.rows[0];
-}
-
-export async function incrementCatchWeight(id, additionalWeight, { price, location, image, catch_date }) {
-  const result = await pool.query(
-    `UPDATE fish_catches
-     SET weight = weight + $1,
-         price = COALESCE($2, price),
-         location = COALESCE($3, location),
-         image = COALESCE($4, image),
-         catch_date = COALESCE($5, catch_date),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $6
-     RETURNING *`,
-    [additionalWeight, price, location, image, catch_date, id]
-  );
-  return result.rows[0];
-}
-
-export async function createFishCatch({ fish_name, weight, price, location, image, catch_date, user_id }) {
-  const result = await pool.query(
-    'INSERT INTO fish_catches (fish_name, weight, price, location, image, catch_date, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-    [fish_name, weight, price, location, image, catch_date, user_id]
-  );
-  return result.rows[0];
-}
-
-export async function getFishCatchesByUser(user_id) {
-  const result = await pool.query(
-    `SELECT
-      fc.*,
-      u.id AS fisherman_id,
-      u.name AS fisherman_name,
-      u.email AS fisherman_email,
-      u.profile_picture AS fisherman_profile_picture
-    FROM fish_catches fc
-    LEFT JOIN users u ON fc.user_id = u.id
-    WHERE fc.user_id = $1
-    ORDER BY fc.created_at DESC`,
-    [user_id]
-  );
-  return result.rows;
-}
-
-export async function getAllFishCatches() {
-  const result = await pool.query(
-    `SELECT
-      fc.*,
-      u.id AS fisherman_id,
-      u.name AS fisherman_name,
-      u.email AS fisherman_email,
-      u.profile_picture AS fisherman_profile_picture
-    FROM fish_catches fc
-    LEFT JOIN users u ON fc.user_id = u.id
-    ORDER BY fc.created_at DESC`
-  );
-  return result.rows;
-}
-
-export async function getFishCatchById(id) {
-  const result = await pool.query('SELECT * FROM fish_catches WHERE id = $1', [id]);
-  return result.rows[0];
-}
-
-export async function updateFishCatch(id, { fish_name, weight, price, location, image, catch_date, status }) {
-  const updates = [];
-  const values = [];
-  let paramCount = 1;
-
-  if (fish_name !== undefined) {
-    updates.push(`fish_name = $${paramCount++}`);
-    values.push(fish_name);
-  }
-  if (weight !== undefined) {
-    updates.push(`weight = $${paramCount++}`);
-    values.push(weight);
-  }
-  if (price !== undefined) {
-    updates.push(`price = $${paramCount++}`);
-    values.push(price);
-  }
-  if (location !== undefined) {
-    updates.push(`location = $${paramCount++}`);
-    values.push(location);
-  }
-  if (image !== undefined) {
-    updates.push(`image = $${paramCount++}`);
-    values.push(image);
-  }
-  if (catch_date !== undefined) {
-    updates.push(`catch_date = $${paramCount++}`);
-    values.push(catch_date);
-  }
-  if (status !== undefined) {
-    updates.push(`status = $${paramCount++}`);
-    values.push(status);
-  }
-
-  updates.push(`updated_at = CURRENT_TIMESTAMP`);
-  values.push(id);
-
-  const query = `UPDATE fish_catches SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
-  const result = await pool.query(query, values);
-  return result.rows[0];
-}
-
-export async function reduceFishCatchWeight(id, weight) {
-  const result = await pool.query(
-    `UPDATE fish_catches
-       SET weight = GREATEST(weight - $1, 0),
-           status = CASE WHEN weight - $1 <= 0 THEN 'sold' ELSE status END,
-           updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2
-     RETURNING *`,
-    [weight, id]
-  );
-  return result.rows[0];
-}
-
-export async function restoreFishCatchWeight(id, weight) {
-  const result = await pool.query(
-    `UPDATE fish_catches
-       SET weight = weight + $1,
-           status = CASE WHEN weight + $1 > 0 AND status = 'sold' THEN 'listed' ELSE status END,
-           updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2
-     RETURNING *`,
-    [weight, id]
-  );
-  return result.rows[0];
-}
-
-export async function deleteFishCatch(id) {
-  const result = await pool.query('DELETE FROM fish_catches WHERE id = $1 RETURNING *', [id]);
-  return result.rows[0];
-}
-
-// Earnings functions
-export async function getFishermanEarnings(fisherman_id) {
-  const result = await pool.query(
-    `SELECT 
-      COALESCE(SUM(CASE WHEN o.status IN ('completed', 'delivered') THEN o.total_price ELSE 0 END), 0) as total_earnings,
-      COALESCE(SUM(CASE WHEN o.status = 'pending' THEN o.total_price ELSE 0 END), 0) as pending_earnings,
-      COUNT(DISTINCT CASE WHEN o.status IN ('completed', 'delivered') THEN o.id END) as completed_orders,
-      COUNT(DISTINCT CASE WHEN o.status = 'pending' THEN o.id END) as pending_orders
-     FROM orders o
-     JOIN order_items oi ON oi.order_id = o.id
-     JOIN fish_catches fc ON oi.fish_id = fc.id
-     WHERE fc.user_id = $1`,
-    [fisherman_id]
-  );
-  return result.rows[0];
-}
-
-export async function getDailyEarnings(fisherman_id, days = 30) {
-  const result = await pool.query(
-    `SELECT
-      DATE(o.created_at) as date,
-      COALESCE(SUM(CASE WHEN o.status IN ('completed', 'delivered') THEN o.total_price ELSE 0 END), 0) as earnings,
-      COUNT(DISTINCT o.id) as order_count
-     FROM orders o
-     JOIN order_items oi ON oi.order_id = o.id
-     JOIN fish_catches fc ON oi.fish_id = fc.id
-     WHERE fc.user_id = $1 AND o.created_at >= NOW() - INTERVAL '1 day' * $2
-     GROUP BY DATE(o.created_at)
-     ORDER BY date ASC`,
-    [fisherman_id, days]
-  );
-  return result.rows;
-}
-
-export async function getMonthlyEarnings(fisherman_id, months = 12) {
-  const result = await pool.query(
-    `SELECT
-      DATE_TRUNC('month', o.created_at)::DATE as month,
-      COALESCE(SUM(CASE WHEN o.status IN ('completed', 'delivered') THEN o.total_price ELSE 0 END), 0) as earnings,
-      COUNT(DISTINCT o.id) as order_count
-     FROM orders o
-     JOIN order_items oi ON oi.order_id = o.id
-     JOIN fish_catches fc ON oi.fish_id = fc.id
-     WHERE fc.user_id = $1 AND o.created_at >= NOW() - INTERVAL '1 month' * $2
-     GROUP BY DATE_TRUNC('month', o.created_at)
-     ORDER BY month ASC`,
-    [fisherman_id, months]
-  );
-  return result.rows;
-}
-export async function createOrder({ user_id, total_price, status = 'pending', delivery_info = null, order_type = 'purchase' }) {
-  const result = await pool.query(
-    'INSERT INTO orders (user_id, total_price, status, delivery_info, order_type) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-    [user_id, total_price, status, delivery_info, order_type]
-  );
-  return result.rows[0];
-}
-
-export async function getOrdersByUser(user_id) {
-  const result = await pool.query(
-    `SELECT o.*, u.name AS customer_name,
-            COALESCE(dd.name, d.name) AS driver_name,
-            COALESCE(dd.phone, CASE WHEN d.email = 'demo_driver@fisher.com' THEN '1-800-555-0199' ELSE NULL END) AS driver_phone,
-            COALESCE(dd.vehicle_type, CASE WHEN d.email = 'demo_driver@fisher.com' THEN 'Bicycle' ELSE NULL END) AS driver_vehicle_type,
-            dd.vehicle_number AS driver_vehicle_number,
-            dd.vehicle_color AS driver_vehicle_color
-     FROM orders o
-     JOIN users u ON o.user_id = u.id
-     LEFT JOIN users d ON o.driver_id = d.id
-     LEFT JOIN delivery_drivers dd ON o.driver_id = dd.user_id
-     WHERE o.user_id = $1
-     ORDER BY o.created_at DESC`,
-    [user_id]
-  );
-  return result.rows;
-}
-
-export async function getAllOrders() {
-  const result = await pool.query(
-    `SELECT o.*, u.name AS customer_name,
-            COALESCE(dd.name, d.name) AS driver_name,
-            COALESCE(dd.phone, CASE WHEN d.email = 'demo_driver@fisher.com' THEN '1-800-555-0199' ELSE NULL END) AS driver_phone,
-            COALESCE(dd.vehicle_type, CASE WHEN d.email = 'demo_driver@fisher.com' THEN 'Bicycle' ELSE NULL END) AS driver_vehicle_type,
-            dd.vehicle_number AS driver_vehicle_number,
-            dd.vehicle_color AS driver_vehicle_color
-     FROM orders o
-     JOIN users u ON o.user_id = u.id
-     LEFT JOIN users d ON o.driver_id = d.id
-     LEFT JOIN delivery_drivers dd ON o.driver_id = dd.user_id
-     ORDER BY o.created_at DESC`
-  );
-  return result.rows;
-}
-
-export async function createNotification({ user_id, message, is_read = false }) {
-  const result = await pool.query(
-    'INSERT INTO notifications (user_id, message, is_read) VALUES ($1, $2, $3) RETURNING *',
-    [user_id, message, is_read]
-  );
-  return result.rows[0];
-}
-
-export async function getNotificationsByUser(user_id) {
-  const result = await pool.query(
-    'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC',
-    [user_id]
-  );
-  return result.rows;
-}
-
-export async function markNotificationRead(notification_id, user_id) {
-  const result = await pool.query(
-    'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2 RETURNING *',
-    [notification_id, user_id]
-  );
-  return result.rows[0];
-}
-
-export async function markAllNotificationsRead(user_id) {
-  const result = await pool.query(
-    'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 RETURNING *',
-    [user_id]
-  );
-  return result.rows;
-}
-
-export async function updateOrderStatus(id, status) {
-  const result = await pool.query(
-    'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *',
-    [status, id]
-  );
-  return result.rows[0];
-}
-
-export async function assignOrderToDriver(orderId, io) {
-  const orderRes = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
-  const order = orderRes.rows[0];
-  if (!order) return null;
-
-  if (order.driver_id || ['assigned', 'picked_up', 'delivered'].includes(order.delivery_status)) {
-    return order;
-  }
-
-  let driverRes = await pool.query(
-    "SELECT * FROM users WHERE role = 'driver' AND status = 'active' ORDER BY id ASC LIMIT 1"
-  );
-  let driver = driverRes.rows[0];
-
-  if (!driver) {
-    const bcrypt = (await import('bcryptjs')).default;
-    const hashedPassword = await bcrypt.hash('demopass123', 10);
-    const newDriverRes = await pool.query(
-      `INSERT INTO users (name, email, password, role, status)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      ['Demo Driver', 'demo_driver@fisher.com', hashedPassword, 'driver', 'active']
-    );
-    driver = newDriverRes.rows[0];
-  }
-
-  const updatedRes = await pool.query(
-    `UPDATE orders
-     SET driver_id = $1, delivery_status = 'assigned', updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2
-     RETURNING *`,
-    [driver.id, orderId]
-  );
-  const updatedOrder = updatedRes.rows[0];
-
-  await createNotification({
-    user_id: order.user_id,
-    message: `A driver has accepted your order #${orderId} and is preparing for delivery.`,
-    is_read: false
-  });
-
-  // Fetch delivery driver details if they exist in delivery_drivers table
-  const ddRes = await pool.query('SELECT * FROM delivery_drivers WHERE user_id = $1', [driver.id]);
-  const dd = ddRes.rows[0];
-
-  if (io) {
-    io.to(`user:${order.user_id}`).emit('order-updated', {
-      orderId: updatedOrder.id,
-      status: updatedOrder.status,
-      delivery_status: updatedOrder.delivery_status,
-      driver_id: updatedOrder.driver_id,
-      driver_name: dd ? dd.name : driver.name,
-      driver_phone: dd ? dd.phone : (driver.email === 'demo_driver@fisher.com' ? '1-800-555-0199' : null),
-      driver_vehicle_type: dd ? dd.vehicle_type : (driver.email === 'demo_driver@fisher.com' ? 'Bicycle' : null),
-      driver_vehicle_number: dd ? dd.vehicle_number : null,
-      driver_vehicle_color: dd ? dd.vehicle_color : null
-    });
-  }
-
-  if (driver && driver.email === 'demo_driver@fisher.com') {
-    setTimeout(async () => {
-      try {
-        const pickedUpRes = await pool.query(
-          `UPDATE orders
-           SET delivery_status = 'picked_up', status = 'out_for_delivery', updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1
-           RETURNING *`,
-          [orderId]
-        );
-        const pickedUpOrder = pickedUpRes.rows[0];
-
-        await createNotification({
-          user_id: order.user_id,
-          message: `Your order #${orderId} is out for delivery.`,
-          is_read: false
-        });
-
-        if (io) {
-          io.to(`user:${order.user_id}`).emit('order-updated', {
-            orderId,
-            status: pickedUpOrder.status,
-            delivery_status: pickedUpOrder.delivery_status,
-            driver_id: pickedUpOrder.driver_id
-          });
-        }
-
-        setTimeout(async () => {
-          try {
-            const deliveredRes = await pool.query(
-              `UPDATE orders
-               SET delivery_status = 'delivered', status = 'delivered', updated_at = CURRENT_TIMESTAMP
-               WHERE id = $1
-               RETURNING *`,
-              [orderId]
-            );
-            const deliveredOrder = deliveredRes.rows[0];
-
-            await createNotification({
-              user_id: order.user_id,
-              message: `Your order #${orderId} has been successfully delivered!`,
-              is_read: false
-            });
-
-            if (io) {
-              io.to(`user:${order.user_id}`).emit('order-updated', {
-                orderId,
-                status: deliveredOrder.status,
-                delivery_status: deliveredOrder.delivery_status,
-                driver_id: deliveredOrder.driver_id
-              });
-            }
-          } catch (err) {
-            console.error('Delivery progression error:', err);
-          }
-        }, 4000);
-      } catch (err) {
-        console.error('Pickup progression error:', err);
-      }
-    }, 3000);
-  }
-
-  return updatedOrder;
-}
-
-export async function getOrdersByFisherman(fisherman_id) {
-  const result = await pool.query(
-    `SELECT DISTINCT o.*, u.name AS customer_name,
-            COALESCE(dd.name, d.name) AS driver_name,
-            COALESCE(dd.phone, CASE WHEN d.email = 'demo_driver@fisher.com' THEN '1-800-555-0199' ELSE NULL END) AS driver_phone,
-            COALESCE(dd.vehicle_type, CASE WHEN d.email = 'demo_driver@fisher.com' THEN 'Bicycle' ELSE NULL END) AS driver_vehicle_type,
-            dd.vehicle_number AS driver_vehicle_number,
-            dd.vehicle_color AS driver_vehicle_color
-     FROM orders o
-     JOIN users u ON o.user_id = u.id
-     JOIN order_items oi ON oi.order_id = o.id
-     JOIN fish_catches fc ON oi.fish_id = fc.id
-     LEFT JOIN users d ON o.driver_id = d.id
-     LEFT JOIN delivery_drivers dd ON o.driver_id = dd.user_id
-     WHERE fc.user_id = $1
-     ORDER BY o.created_at DESC`,
-    [fisherman_id]
-  );
-  return result.rows;
-}
-
-export async function getOrderById(id) {
-  const result = await pool.query(
-    `SELECT o.*,
-            COALESCE(dd.name, d.name) AS driver_name,
-            COALESCE(dd.phone, CASE WHEN d.email = 'demo_driver@fisher.com' THEN '1-800-555-0199' ELSE NULL END) AS driver_phone,
-            COALESCE(dd.vehicle_type, CASE WHEN d.email = 'demo_driver@fisher.com' THEN 'Bicycle' ELSE NULL END) AS driver_vehicle_type,
-            dd.vehicle_number AS driver_vehicle_number,
-            dd.vehicle_color AS driver_vehicle_color
-     FROM orders o
-     LEFT JOIN users d ON o.driver_id = d.id
-     LEFT JOIN delivery_drivers dd ON o.driver_id = dd.user_id
-     WHERE o.id = $1`,
-    [id]
-  );
-  return result.rows[0];
-}
-
-export async function isOrderOwnedByFisherman(order_id, fisherman_id) {
-  const result = await pool.query(
-    `SELECT COUNT(*) FILTER (WHERE fc.user_id = $2) AS own_count,
-            COUNT(*) AS total_count
-     FROM order_items oi
-     JOIN fish_catches fc ON oi.fish_id = fc.id
-     WHERE oi.order_id = $1`,
-    [order_id, fisherman_id]
-  );
-
-  if (!result.rows[0]) return false;
-  return Number(result.rows[0].own_count) > 0;
-}
-
-// Order items functions
-export async function createOrderItem({ order_id, fish_id, weight, price }) {
-  const result = await pool.query(
-    'INSERT INTO order_items (order_id, fish_id, weight, price) VALUES ($1, $2, $3, $4) RETURNING *',
-    [order_id, fish_id, weight, price]
-  );
-  return result.rows[0];
-}
-
-export async function getOrderItems(order_id) {
-  const result = await pool.query(
-    'SELECT oi.*, fc.fish_name, fc.image FROM order_items oi JOIN fish_catches fc ON oi.fish_id = fc.id WHERE oi.order_id = $1',
-    [order_id]
-  );
-  return result.rows;
 }

@@ -13,11 +13,34 @@ const AdminIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColo
 const BellIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>;
 const MenuIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>;
 const CloseIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>;
+const SupportIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" /></svg>;
+const HelpIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 
 function Sidebar({ activePage, isOpen, onClose }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const userRole = localStorage.getItem('fisher_role');
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [adminContact, setAdminContact] = useState(null);
+  const [loadingAdmin, setLoadingAdmin] = useState(false);
+
+  const fetchAdminContact = async () => {
+    setLoadingAdmin(true);
+    try {
+      const res = await api.get('/users/admin-contact');
+      setAdminContact(res.data);
+    } catch (err) {
+      console.error('Failed to load admin contact', err);
+    } finally {
+      setLoadingAdmin(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showSupportModal && !adminContact) {
+      fetchAdminContact();
+    }
+  }, [showSupportModal]);
 
   useEffect(() => {
     async function loadUser() {
@@ -124,6 +147,21 @@ function Sidebar({ activePage, isOpen, onClose }) {
             <SettingsIcon />
             <span>Settings</span>
           </button>
+
+          <button onClick={() => handleNavigate('/help')} className={getNavClass('help')}>
+            <HelpIcon />
+            <span>Help & Tips</span>
+          </button>
+
+          {userRole === 'customer' && (
+            <button
+              onClick={() => setShowSupportModal(true)}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800/50 hover:text-cyan-400 hover:border-l-4 hover:border-cyan-500 w-full text-left text-sm font-medium transition-all duration-200 relative"
+            >
+              <SupportIcon />
+              <span>Contact Support</span>
+            </button>
+          )}
         </nav>
       </div>
 
@@ -153,6 +191,92 @@ function Sidebar({ activePage, isOpen, onClose }) {
           <span>Logout</span>
         </button>
       </div>
+
+      {showSupportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl p-6 relative">
+            <button
+              onClick={() => setShowSupportModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg transition"
+            >
+              ✕
+            </button>
+            <h3 className="text-xl font-bold text-slate-950 dark:text-white mb-4 flex items-center gap-2">
+              <span>🛡️</span> Contact Admin / Support
+            </h3>
+            
+            {loadingAdmin ? (
+              <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                Loading support details...
+              </div>
+            ) : adminContact ? (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Have questions, issues with your order, or need system support? You can reach our administrator directly through any of these channels:
+                </p>
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-3">
+                  <div>
+                    <p className="text-xs uppercase font-bold tracking-wider text-slate-400">Admin Name</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{adminContact.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase font-bold tracking-wider text-slate-400">Email Address</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{adminContact.email}</p>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col gap-2 pt-2">
+                  {adminContact.phone && (
+                    <a
+                      href={`tel:${adminContact.phone}`}
+                      className="flex items-center justify-center gap-2 w-full py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-md shadow-cyan-500/25"
+                    >
+                      📞 Call Phone ({adminContact.phone})
+                    </a>
+                  )}
+                  {adminContact.whatsapp && (
+                    <a
+                      href={`https://wa.me/${adminContact.whatsapp.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-md shadow-green-500/25"
+                    >
+                      💬 WhatsApp Message
+                    </a>
+                  )}
+                  {adminContact.facebook && (
+                    <a
+                      href={adminContact.facebook}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-md shadow-blue-500/25"
+                    >
+                      👥 Facebook Profile
+                    </a>
+                  )}
+                  <a
+                    href={`mailto:${adminContact.email}`}
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 font-semibold rounded-xl text-sm transition-colors"
+                  >
+                    ✉️ Send Email
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-sm text-red-500">
+                Failed to load admin contact details.
+              </div>
+            )}
+            
+            <button
+              onClick={() => setShowSupportModal(false)}
+              className="mt-6 w-full py-2.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl text-sm transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   );}
 export default Sidebar

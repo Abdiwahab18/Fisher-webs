@@ -18,6 +18,7 @@ function Market() {
   const [selectedSpecies, setSelectedSpecies] = useState('All Species');
   const [selectedLocation, setSelectedLocation] = useState('Global Markets');
   const [deliveryInfo, setDeliveryInfo] = useState('');
+  const [deliveryInfoError, setDeliveryInfoError] = useState('');
   const [priceRange, setPriceRange] = useState(300);
   const [freshness, setFreshness] = useState('All');
   const [sortBy, setSortBy] = useState('Recent');
@@ -84,7 +85,9 @@ function Market() {
       const matchesLocation = selectedLocation === 'Global Markets' || (catchItem.location || '').toLowerCase().includes(selectedLocation.toLowerCase());
       const matchesPrice = price <= priceRange;
       const matchesFreshness = freshness === 'All' || (freshness === 'Premium' && catchItem.status === 'fresh');
-      const matchesFisherman = !selectedFishermanId || catchItem.fisherman_id === selectedFishermanId;
+      const matchesFisherman = userRole === 'fisherman'
+        ? (currentUserId ? (Number(catchItem.user_id) === currentUserId || Number(catchItem.fisherman_id) === currentUserId) : true)
+        : (!selectedFishermanId || catchItem.fisherman_id === selectedFishermanId);
       const isAvailable = Number(catchItem.weight) > 0 && catchItem.status !== 'sold';
 
       return matchesSearch && matchesSpecies && matchesLocation && matchesPrice && matchesFreshness && matchesFisherman && isAvailable;
@@ -107,8 +110,8 @@ function Market() {
       return;
     }
 
-    if (currentUserId && catchItem.user_id === currentUserId) {
-      alert("You cannot purchase your own catch.");
+    if (userRole === 'fisherman' && currentUserId && catchItem.user_id !== currentUserId) {
+      alert("Fishermen can only purchase their own catches.");
       return;
     }
 
@@ -163,10 +166,12 @@ function Market() {
       return;
     }
 
-    if (currentUserId && catchItem.user_id === currentUserId) {
-      alert("You cannot purchase your own catch.");
+    if (userRole === 'fisherman' && currentUserId && catchItem.user_id !== currentUserId) {
+      alert("Fishermen can only purchase their own catches.");
       return;
     }
+
+
 
     const availableStock = Number(catchItem.weight) || 0;
     if (availableStock < 1) {
@@ -235,6 +240,37 @@ function Market() {
     return cart.reduce((total, item) => total + item.weight, 0);
   };
 
+  const validateDeliveryInfo = (value) => {
+    // Only required for customers
+    if (userRole !== 'customer') {
+      setDeliveryInfoError('');
+      return true;
+    }
+
+    if (!value.trim()) {
+      setDeliveryInfoError('Delivery/contact information is required.');
+      return false;
+    }
+
+    // Extract any continuous sequences of digits (and optional leading +) that look like phone numbers
+    // Clean spaces and hyphens first to handle formatted numbers like "61 512 34 56" or "+252-615-123456"
+    const cleaned = value.replace(/[\s-]/g, '');
+    const candidateMatches = cleaned.match(/\+?\d{5,15}/g) || [];
+
+    for (const cand of candidateMatches) {
+      const isValidMobile = /^(\+?252|00252|0)?(61|62|63|65|68|79|90)\d{7}$/.test(cand);
+      const isValidLandline = /^(\+?252|00252|0)?[1-5]\d{6}$/.test(cand);
+
+      if (!isValidMobile && !isValidLandline) {
+        setDeliveryInfoError('If you enter a phone number, it must be a valid Somali number (e.g. +25261xxxxxxx, 61xxxxxxx, or 061xxxxxxx).');
+        return false;
+      }
+    }
+
+    setDeliveryInfoError('');
+    return true;
+  };
+
   const placeOrder = async () => {
     if (!isAuthenticated) {
       alert('Please register or login before placing an order.');
@@ -248,8 +284,7 @@ function Market() {
     }
 
     try {
-      if (!deliveryInfo.trim()) {
-        setError('Delivery/contact information is required.');
+      if (!validateDeliveryInfo(deliveryInfo)) {
         return;
       }
 
@@ -267,6 +302,7 @@ function Market() {
       const response = await api.post('/orders', orderData);
       setCart([]);
       setDeliveryInfo('');
+      setDeliveryInfoError('');
       setShowCart(false);
       navigate('/checkout', { 
         state: { 
@@ -352,7 +388,7 @@ function Market() {
     <Layout activePage="market" className="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans">
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-7xl">
-          {!selectedFishermanId ? (
+          {(!selectedFishermanId && userRole !== 'fisherman') ? (
           
             <section>
               <div className="text-center max-w-2xl mx-auto mb-10">
@@ -423,33 +459,37 @@ function Market() {
           ) : (
             /* Step 2: Selected fisherman's products */
             <section className="mb-10">
-              <button
-                onClick={goBackToFishermen}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-6"
-              >
-                <span aria-hidden="true">←</span> Back to Fishermen
-              </button>
+              {userRole !== 'fisherman' && (
+                <button
+                  onClick={goBackToFishermen}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-6"
+                >
+                  <span aria-hidden="true">←</span> Back to Fishermen
+                </button>
+              )}
 
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 overflow-hidden rounded-full ring-2 ring-slate-100 dark:ring-slate-700 shrink-0">
-                    {selectedFisherman?.profile_picture ? (
-                      <img
-                        src={selectedFisherman.profile_picture}
-                        alt={selectedFisherman?.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <img
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedFisherman?.name}`}
-                        alt={selectedFisherman?.name}
-                        className="h-full w-full object-cover bg-slate-100"
-                      />
-                    )}
-                  </div>
+                  {userRole !== 'fisherman' && (
+                    <div className="h-14 w-14 overflow-hidden rounded-full ring-2 ring-slate-100 dark:ring-slate-700 shrink-0">
+                      {selectedFisherman?.profile_picture ? (
+                        <img
+                          src={selectedFisherman.profile_picture}
+                          alt={selectedFisherman?.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedFisherman?.name}`}
+                          alt={selectedFisherman?.name}
+                          className="h-full w-full object-cover bg-slate-100"
+                        />
+                      )}
+                    </div>
+                  )}
                   <div>
                     <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
-                      {selectedFisherman?.name || 'Fisherman'}&apos;s Catch
+                      {userRole === 'fisherman' ? 'My Listed Catches' : `${selectedFisherman?.name || 'Fisherman'}'s Catch`}
                     </h2>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                       {filteredCatches.length} product{filteredCatches.length !== 1 ? 's' : ''} available today
@@ -563,7 +603,7 @@ function Market() {
                 const weight = Number(catchItem.weight ) || 0;
                 const isOutOfStock = weight <= 0;
                 const isPremium = catchItem.status !== 'fresh';
-                const isOwnCatch = currentUserId && catchItem.user_id === currentUserId;
+
 
                 return (
                   <article
@@ -641,30 +681,32 @@ function Market() {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => addToCart(catchItem)}
-                          disabled={isOutOfStock || isOwnCatch}
-                          className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                            (isOutOfStock || isOwnCatch)
-                              ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500'
-                              : 'bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
-                          }`}
-                        >
-                          {isOwnCatch ? 'Your Catch' : 'Add to Cart'}
-                        </button>
-                        <button
-                          onClick={() => handleBuyNow(catchItem)}
-                          disabled={isOutOfStock || isOwnCatch}
-                          className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                            (isOutOfStock || isOwnCatch)
-                              ? 'cursor-not-allowed bg-slate-300 text-slate-500'
-                              : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500'
-                          }`}
-                        >
-                          {isOwnCatch ? 'Your Catch' : 'Buy Now'}
-                        </button>
-                      </div>
+                      
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => addToCart(catchItem)}
+                            disabled={isOutOfStock}
+                            className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                              (isOutOfStock )
+                                ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500'
+                                : 'bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
+                            }`}
+                          >
+                            {  'Add to Cart'}
+                          </button>
+                          <button
+                            onClick={() => handleBuyNow(catchItem)}
+                            disabled={isOutOfStock}
+                            className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                              (isOutOfStock)
+                                ? 'cursor-not-allowed bg-slate-300 text-slate-500'
+                                : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500'
+                            }`}
+                          >
+                           {  'Buy Now'}
+                          </button>
+                        </div>
+                     
                     </div>
                   </article>
                 );
@@ -693,7 +735,7 @@ function Market() {
         </div>
       </div>
       {/* Cart Sidebar */}
-      {showCart && (
+      {showCart  && (
         <div className="fixed right-0 top-0 h-screen w-80 bg-white dark:bg-slate-800 shadow-2xl z-50 flex flex-col">
           <div className="bg-slate-900 text-white p-6 flex justify-between items-center">
             <div>
@@ -733,16 +775,28 @@ function Market() {
           </div>
 
           <div className="border-t border-slate-100 dark:border-slate-700 p-6 bg-slate-50 dark:bg-slate-800">
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Delivery Details</label>
-              <textarea
-                value={deliveryInfo}
-                onChange={(e) => setDeliveryInfo(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-900 bg-white dark:bg-slate-700"
-                rows={2}
-                placeholder="Enter address..."
-              />
-            </div>
+            {userRole === 'customer' && (
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Delivery Details <span className="text-red-500">*</span></label>
+                <textarea
+                  value={deliveryInfo}
+                  onChange={(e) => {
+                    setDeliveryInfo(e.target.value);
+                    validateDeliveryInfo(e.target.value);
+                  }}
+                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none transition-all ${
+                    deliveryInfoError
+                      ? 'border-red-500 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                      : 'border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-slate-900 bg-white dark:bg-slate-700'
+                  }`}
+                  rows={2}
+                  placeholder="Enter address, phone number, or delivery notes"
+                />
+                {deliveryInfoError && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{deliveryInfoError}</p>
+                )}
+              </div>
+            )}
             <div className="flex justify-between items-center text-lg font-bold text-slate-900 dark:text-white mb-4">
               <span>Total:</span>
               <span>${getTotalPrice()}</span>
@@ -795,7 +849,7 @@ function Market() {
       )}
 
       {/* Cart Button */}
-      {selectedFishermanId && (
+      {selectedFishermanId && userRole !== 'fisherman' && (
         <button
           onClick={() => setShowCart(!showCart)}
           className="fixed bottom-8 right-8 w-14 h-14 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-xl flex items-center justify-center text-xl transition-all hover:scale-105 z-40"

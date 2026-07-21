@@ -21,7 +21,6 @@ function Orders() {
   const [expandedOrders, setExpandedOrders] = useState({});
   const [drivers, setDrivers] = useState([]);
   const [selectedDriverId, setSelectedDriverId] = useState('');
-  const [deliveryTime, setDeliveryTime] = useState('');
   const [showGuide, setShowGuide] = useState(false);
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
@@ -164,11 +163,11 @@ function Orders() {
       case 2: // Paid
         return (payStatus === 'paid' || !['pending'].includes(status)) ? 'completed' : 'pending';
       case 3: // Driver Assigned
-        return (hasDriver || ['assigned', 'picked_up', 'delivered'].includes(delStatus) || ['out_for_delivery', 'delivered', 'completed'].includes(status)) ? 'completed' : 'pending';
+        return (hasDriver || ['assigned', 'picked_up', 'delivered'].includes(delStatus)) ? 'completed' : 'pending';
       case 4: // Out for Delivery (Picked Up)
-        return (['picked_up', 'delivered'].includes(delStatus) || ['out_for_delivery', 'delivered', 'completed'].includes(status)) ? 'completed' : 'pending';
+        return (['picked_up', 'delivered'].includes(delStatus)) ? 'completed' : 'pending';
       case 5: // Delivered
-        return (delStatus === 'delivered' || ['delivered', 'completed'].includes(status)) ? 'completed' : 'pending';
+        return (delStatus === 'delivered') ? 'completed' : 'pending';
       default:
         return 'pending';
     }
@@ -206,9 +205,8 @@ function Orders() {
       return;
     }
     try {
-      await api.post(`/orders/${orderId}/assign-driver`, { driver_id: selectedDriverId, estimated_delivery_time: deliveryTime });
+      await api.post(`/orders/${orderId}/assign-driver`, { driver_id: selectedDriverId });
       setSelectedDriverId('');
-      setDeliveryTime('');
       setError('');
       setExpandedOrders(prev => ({ ...prev, [orderId]: true }));
       const response = await api.get(canManageOrders ? '/orders' : '/orders/my-orders');
@@ -279,8 +277,19 @@ function Orders() {
   const filteredOrders = orders.filter((order) => {
     const term = searchTerm.trim().toLowerCase();
     
-    if (statusFilter !== 'all' && order.status?.toLowerCase() !== statusFilter) {
-      return false;
+    if (statusFilter !== 'all') {
+      const currentStatus = order.status?.toLowerCase();
+      if (statusFilter === 'pending') {
+        if (!['pending', 'pending_verification'].includes(currentStatus)) return false;
+      } else if (statusFilter === 'completed') {
+        if (currentStatus !== 'completed') return false;
+      } else if (statusFilter === 'delivered') {
+        if (currentStatus !== 'delivered') return false;
+      } else if (statusFilter === 'out_for_delivery') {
+        if (!['out_for_delivery', 'out for_delivery'].includes(currentStatus)) return false;
+      } else {
+        if (currentStatus !== statusFilter) return false;
+      }
     }
 
     if (!term) return true;
@@ -330,8 +339,10 @@ function Orders() {
   };
 
   const totalOrders = orders.length;
-  const pendingOrders = orders.filter((order) => order.status?.toLowerCase() === 'pending').length;
-  const completedOrders = orders.filter((order) => ['delivered', 'completed'].includes(order.status?.toLowerCase())).length;
+  const processingOrders = orders.filter((order) => order.status?.toLowerCase() === 'processing').length;
+  const outForDeliveryOrders = orders.filter((order) => ['out_for_delivery', 'out for_delivery'].includes(order.status?.toLowerCase())).length;
+  const deliveredOrders = orders.filter((order) => order.status?.toLowerCase() === 'delivered').length;
+  const completedOrders = orders.filter((order) => order.status?.toLowerCase() === 'completed').length;
   const totalRevenue = orders
     .filter(order => order.payment_status?.toLowerCase() === 'paid')
     .reduce((total, order) => total + (Number(order.total_price) || 0), 0)
@@ -360,68 +371,7 @@ function Orders() {
             )}
           </div>
 
-          {/* Collapsible Delivery Scanner Guide
-          <div className="mb-8 bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 dark:from-cyan-950/20 dark:to-indigo-950/20 rounded-2xl border border-cyan-200/50 dark:border-cyan-900/30 p-6">
-            <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowGuide(!showGuide)}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-cyan-500/20 rounded-xl text-cyan-700 dark:text-cyan-400">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    Delivery Scanner & Autopilot Guide 🚚
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-500 text-white uppercase font-bold tracking-wider">Demo Tool</span>
-                  </h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Click to understand how the order delivery system runs automatically</p>
-                </div>
-              </div>
-              <span className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                {showGuide ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" /></svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                )}
-              </span>
-            </div>
-
-            {showGuide && (
-              <div className="mt-6 pt-6 border-t border-cyan-200/30 dark:border-cyan-900/30 grid grid-cols-1 md:grid-cols-5 gap-4 text-center">
-                <div className="p-3 bg-white/50 dark:bg-slate-900/30 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
-                  <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold mx-auto mb-2 text-sm">1</div>
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Order Placed</h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Pending payment and verification</p>
-                </div>
-                
-                <div className="p-3 bg-white/50 dark:bg-slate-900/30 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
-                  <div className="w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 flex items-center justify-center font-bold mx-auto mb-2 text-sm">2</div>
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Paid / Processing</h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Order verified and waiting for a driver</p>
-                </div>
-
-                <div className="p-3 bg-white/50 dark:bg-slate-900/30 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 flex items-center justify-center font-bold mx-auto mb-2 text-sm">3</div>
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Driver Assigned</h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Driver accepted delivery job</p>
-                </div>
-
-                <div className="p-3 bg-white/50 dark:bg-slate-900/30 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 flex items-center justify-center font-bold mx-auto mb-2 text-sm">4</div>
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">In Transit</h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Catches picked up and on the way</p>
-                </div>
-
-                <div className="p-3 bg-white/50 dark:bg-slate-900/30 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
-                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 flex items-center justify-center font-bold mx-auto mb-2 text-sm">5</div>
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Delivered</h4>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Arrived safely at customer address</p>
-                </div>
-
-                <div className="col-span-1 md:col-span-5 text-xs text-slate-500 dark:text-slate-400 mt-3 text-left bg-white/40 dark:bg-slate-900/20 p-3.5 rounded-xl border border-slate-200/30 dark:border-slate-700/30">
-                  💡 <strong>How to test this manually:</strong> Use the <strong>🔍 Track Status</strong> button to open the scanner and watch the order progress update live as the payment, driver pickup, and delivery steps change.
-                </div>
-              </div>
-            )}
-          </div> */}
+         
 
           {/* Search and Filter */}
           <div className="flex flex-col sm:flex-row gap-4 mb-8">
@@ -442,15 +392,14 @@ function Orders() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm cursor-pointer"
+                className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm cursor-pointer capitalize"
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
-                <option value="cancelled">cancelled</option>
-                <option value="rejected">rejected</option>
+                <option value="processing">Processing</option>
+                <option value="out_for_delivery">Out for Delivery</option>
+                <option value="delivered">Delivered</option>
                 <option value="completed">Completed</option>
-                 <option value="processing">processing</option>
-               
               </select>
 
               <button
@@ -465,39 +414,105 @@ function Orders() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Total Orders</p>
-                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-5 mb-8">
+            {/* Total Orders Card */}
+            <div 
+              onClick={() => setStatusFilter('all')}
+              className={`bg-slate-900 dark:bg-slate-800 text-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden border-2 ${
+                statusFilter === 'all' 
+                  ? 'border-cyan-400 scale-[1.02] shadow-cyan-100/10' 
+                  : 'border-slate-850 dark:border-slate-750 opacity-90 hover:opacity-100 hover:scale-[1.01]'
+              }`}
+            >
+              <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/5 rounded-full blur-xl pointer-events-none"></div>
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <p className="text-slate-300 text-xs font-bold uppercase tracking-wider">Total Orders</p>
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                 </div>
               </div>
-              <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{totalOrders}</p>
+              <p className="text-3xl font-extrabold text-white relative z-10">{totalOrders}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Pending Orders</p>
-                <div className="w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center text-yellow-600 dark:text-yellow-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            {/* Processing Orders Card */}
+            <div 
+              onClick={() => setStatusFilter('processing')}
+              className={`bg-blue-600 dark:bg-blue-700/90 text-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden border-2 ${
+                statusFilter === 'processing' 
+                  ? 'border-white scale-[1.02] shadow-blue-100/10' 
+                  : 'border-transparent opacity-90 hover:opacity-100 hover:scale-[1.01]'
+              }`}
+            >
+              <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/15 rounded-full blur-xl pointer-events-none"></div>
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Processing</p>
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </div>
               </div>
-              <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{pendingOrders}</p>
+              <p className="text-3xl font-extrabold text-white relative z-10">{processingOrders}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Completed</p>
-                <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
+            {/* Out for Delivery Card */}
+            <div 
+              onClick={() => setStatusFilter('out_for_delivery')}
+              className={`bg-indigo-600 dark:bg-indigo-700/90 text-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden border-2 ${
+                statusFilter === 'out_for_delivery' 
+                  ? 'border-white scale-[1.02] shadow-indigo-100/10' 
+                  : 'border-transparent opacity-90 hover:opacity-100 hover:scale-[1.01]'
+              }`}
+            >
+              <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/15 rounded-full blur-xl pointer-events-none"></div>
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider">Out for Delivery</p>
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
+                </div>
+              </div>
+              <p className="text-3xl font-extrabold text-white relative z-10">{outForDeliveryOrders}</p>
+            </div>
+
+            {/* Delivered Card */}
+            <div 
+              onClick={() => setStatusFilter('delivered')}
+              className={`bg-emerald-600 dark:bg-emerald-700/90 text-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden border-2 ${
+                statusFilter === 'delivered' 
+                  ? 'border-white scale-[1.02] shadow-emerald-100/10' 
+                  : 'border-transparent opacity-90 hover:opacity-100 hover:scale-[1.01]'
+              }`}
+            >
+              <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/15 rounded-full blur-xl pointer-events-none"></div>
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <p className="text-emerald-100 text-xs font-bold uppercase tracking-wider">Delivered</p>
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                 </div>
               </div>
-              <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{completedOrders}</p>
+              <p className="text-3xl font-extrabold text-white relative z-10">{deliveredOrders}</p>
             </div>
 
-            <div className="bg-cyan-600 dark:bg-cyan-900/40 rounded-2xl p-6 shadow-md border border-cyan-500 dark:border-cyan-800 hover:shadow-lg transition-shadow relative overflow-hidden">
-              <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+            {/* Completed Card */}
+            <div 
+              onClick={() => setStatusFilter('completed')}
+              className={`bg-teal-600 dark:bg-teal-700/90 text-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden border-2 ${
+                statusFilter === 'completed' 
+                  ? 'border-white scale-[1.02] shadow-teal-100/10' 
+                  : 'border-transparent opacity-90 hover:opacity-100 hover:scale-[1.01]'
+              }`}
+            >
+              <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/15 rounded-full blur-xl pointer-events-none"></div>
+              <div className="flex items-center justify-between mb-4 relative z-10">
+                <p className="text-teal-100 text-xs font-bold uppercase tracking-wider">Completed</p>
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                </div>
+              </div>
+              <p className="text-3xl font-extrabold text-white relative z-10">{completedOrders}</p>
+            </div>
+
+            {/* Total Revenue Card */}
+            <div className="bg-cyan-600 dark:bg-cyan-900/40 text-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden border border-cyan-500 dark:border-cyan-800">
+              <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
               <div className="flex items-center justify-between mb-4 relative z-10">
                 <p className="text-cyan-100 dark:text-cyan-300 text-xs font-bold uppercase tracking-wider">Total Revenue</p>
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
@@ -604,47 +619,6 @@ function Orders() {
                             </span>
                           </td>
                           <td className="py-4 px-6 font-bold text-slate-900 dark:text-white">${order.total_price.toFixed(2)}</td>
-                          {/* <td className="py-4 px-6">
-                            <div className="flex flex-col gap-2">
-                              {canManageOrders ? (
-                                !['completed', 'delivered', 'cancelled', 'rejected'].includes(order.status?.toLowerCase()) && (
-                                  <>
-                                    {order.status?.toLowerCase() === 'processing' && (
-                                      <button
-                                        onClick={() => handleStatusUpdate(order.id, 'completed')}
-                                        className="w-full px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
-                                      >
-                                        Complete
-                                      </button>
-                                    )}
-                                    {order.payment_status?.toLowerCase() !== 'paid' && (
-                                      <button
-                                        onClick={() => handleStatusUpdate(order.id, 'rejected')}
-                                        className="w-full px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 dark:bg-red-900/40 dark:hover:bg-red-900/60 dark:text-red-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
-                                      >
-                                        Reject
-                                      </button>
-                                    )}
-                                  </>
-                                )
-                              ) : (
-                                !['completed', 'delivered', 'cancelled', 'rejected'].includes(order.status?.toLowerCase()) && order.payment_status?.toLowerCase() !== 'paid' && (
-                                  <button
-                                    onClick={() => handleStatusUpdate(order.id, 'cancelled')}
-                                    className="w-full px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 dark:bg-red-900/40 dark:hover:bg-red-900/60 dark:text-red-400 rounded-lg text-xs font-bold transition-colors shadow-sm"
-                                  >
-                                    Cancel Order
-                                  </button>
-                                )
-                              )}
-
-
-
-                              {['completed', 'delivered', 'cancelled', 'rejected'].includes(order.status?.toLowerCase()) && (
-                                <span className="text-slate-400 text-xs italic">No actions</span>
-                              )}
-                            </div>
-                          </td> */}
                         </tr>
 
                         {expandedOrders[order.id] && (
@@ -658,158 +632,205 @@ function Orders() {
                                   </span>
                                   Delivery Scanner Status (Order #{order.id})
                                 </h4>
-                              
-                              {/* Timeline Stepper */}
-                              <div className="relative flex items-center justify-between mb-8 px-4">
-                                <div className="absolute left-6 right-6 top-4 h-[3px] bg-slate-200 dark:bg-slate-700 -z-0 rounded"></div>
-                                <div 
-                                  className="absolute left-6 top-4 h-[3px] bg-cyan-500 transition-all duration-500 -z-0 rounded"
-                                  style={{ width: `${((getActiveStep(order) - 1) / 4) * 88}%` }}
-                                ></div>
 
-                                {/* Step 1 */}
-                                <div className="relative flex flex-col items-center z-10">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
-                                    getStepStatus(order, 1) === 'completed'
-                                      ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
-                                      : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
-                                  }`}>
-                                    ✓
-                                  </div>
-                                  <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Placed</span>
-                                </div>
+                                {/* Timeline Stepper — only shown when a driver is assigned */}
+                                {order.driver_id && (
+                                  <div className="relative flex items-center justify-between mb-8 px-4">
+                                    <div className="absolute left-6 right-6 top-4 h-[3px] bg-slate-200 dark:bg-slate-700 -z-0 rounded"></div>
+                                    <div
+                                      className="absolute left-6 top-4 h-[3px] bg-cyan-500 transition-all duration-500 -z-0 rounded"
+                                      style={{ width: `${((getActiveStep(order) - 1) / 4) * 88}%` }}
+                                    ></div>
 
-                                {/* Step 2 */}
-                                <div className="relative flex flex-col items-center z-10">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
-                                    getStepStatus(order, 2) === 'completed'
-                                      ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
-                                      : getActiveStep(order) === 2
-                                      ? 'bg-white dark:bg-slate-800 border-cyan-500 text-cyan-500 animate-pulse'
-                                      : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
-                                  }`}>
-                                    {getStepStatus(order, 2) === 'completed' ? '✓' : '2'}
-                                  </div>
-                                  <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Paid</span>
-                                </div>
+                                    {/* Step 1 */}
+                                    <div className="relative flex flex-col items-center z-10">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
+                                        getStepStatus(order, 1) === 'completed'
+                                          ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
+                                          : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
+                                      }`}>✓</div>
+                                      <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Placed</span>
+                                    </div>
 
-                                {/* Step 3 */}
-                                <div className="relative flex flex-col items-center z-10">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
-                                    getStepStatus(order, 3) === 'completed'
-                                      ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
-                                      : getActiveStep(order) === 3
-                                      ? 'bg-white dark:bg-slate-800 border-cyan-500 text-cyan-500 animate-pulse'
-                                      : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
-                                  }`}>
-                                    {getStepStatus(order, 3) === 'completed' ? '✓' : '3'}
-                                  </div>
-                                  <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Assigned</span>
-                                </div>
+                                    {/* Step 2 */}
+                                    <div className="relative flex flex-col items-center z-10">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
+                                        getStepStatus(order, 2) === 'completed'
+                                          ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
+                                          : getActiveStep(order) === 2
+                                          ? 'bg-white dark:bg-slate-800 border-cyan-500 text-cyan-500 animate-pulse'
+                                          : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
+                                      }`}>{getStepStatus(order, 2) === 'completed' ? '✓' : '2'}</div>
+                                      <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Paid</span>
+                                    </div>
 
-                                {/* Step 4 */}
-                                <div className="relative flex flex-col items-center z-10">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
-                                    getStepStatus(order, 4) === 'completed'
-                                      ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
-                                      : getActiveStep(order) === 4
-                                      ? 'bg-white dark:bg-slate-800 border-cyan-500 text-cyan-500 animate-pulse'
-                                      : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
-                                  }`}>
-                                    {getStepStatus(order, 4) === 'completed' ? '✓' : '4'}
-                                  </div>
-                                  <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Transit</span>
-                                </div>
+                                    {/* Step 3 */}
+                                    <div className="relative flex flex-col items-center z-10">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
+                                        getStepStatus(order, 3) === 'completed'
+                                          ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
+                                          : getActiveStep(order) === 3
+                                          ? 'bg-white dark:bg-slate-800 border-cyan-500 text-cyan-500 animate-pulse'
+                                          : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
+                                      }`}>{getStepStatus(order, 3) === 'completed' ? '✓' : '3'}</div>
+                                      <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Assigned</span>
+                                    </div>
 
-                                {/* Step 5 */}
-                                <div className="relative flex flex-col items-center z-10">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
-                                    getStepStatus(order, 5) === 'completed'
-                                      ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
-                                      : getActiveStep(order) === 5
-                                      ? 'bg-white dark:bg-slate-800 border-cyan-500 text-cyan-500 animate-pulse'
-                                      : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
-                                  }`}>
-                                    {getStepStatus(order, 5) === 'completed' ? '✓' : '5'}
-                                  </div>
-                                  <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Delivered</span>
-                                </div>
-                              </div>
+                                    {/* Step 4 */}
+                                    <div className="relative flex flex-col items-center z-10">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
+                                        getStepStatus(order, 4) === 'completed'
+                                          ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
+                                          : getActiveStep(order) === 4
+                                          ? 'bg-white dark:bg-slate-800 border-cyan-500 text-cyan-500 animate-pulse'
+                                          : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
+                                      }`}>{getStepStatus(order, 4) === 'completed' ? '✓' : '4'}</div>
+                                      <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Transit</span>
+                                    </div>
 
-                              {/* Detailed Status Logs */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
-                                {isFisherman && (
-                                  <div className="md:col-span-2 rounded-xl border border-cyan-200 dark:border-cyan-900/50 bg-cyan-50/60 dark:bg-cyan-950/20 p-4">
-                                    <div className="text-xs font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-400 mb-2">Assign Driver</div>
-                                    <div className="flex flex-col md:flex-row gap-2">
-                                      <select value={selectedDriverId} onChange={(e) => setSelectedDriverId(e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                                        <option value="">Select a driver</option>
-                                        {drivers.map((driver) => (
-                                          <option key={driver.id} value={driver.id}>{driver.name} {driver.phone ? `• ${driver.phone}` : ''}</option>
-                                        ))}
-                                      </select>
-                                      <input value={deliveryTime} onChange={(e) => setDeliveryTime(e.target.value)} placeholder="Est. delivery time" className="md:w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                                      <button onClick={() => handleAssignDriver(order.id)} className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm font-semibold">Assign Driver</button>
+                                    {/* Step 5 */}
+                                    <div className="relative flex flex-col items-center z-10">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
+                                        getStepStatus(order, 5) === 'completed'
+                                          ? 'bg-cyan-500 border-cyan-500 text-white shadow-md shadow-cyan-200 dark:shadow-none'
+                                          : getActiveStep(order) === 5
+                                          ? 'bg-white dark:bg-slate-800 border-cyan-500 text-cyan-500 animate-pulse'
+                                          : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-500'
+                                      }`}>{getStepStatus(order, 5) === 'completed' ? '✓' : '5'}</div>
+                                      <span className="text-[10px] font-bold mt-2 text-slate-700 dark:text-slate-300 uppercase tracking-wider">Delivered</span>
                                     </div>
                                   </div>
                                 )}
-                                <div>
-                                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Scanner Details</span>
-                                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                                    {getActiveStep(order) === 2 && '💳 Awaiting payment verification.'}
-                                    {getActiveStep(order) === 3 && '📦 Paid successfully. Waiting for a delivery driver to accept this job.'}
-                                    {getActiveStep(order) === 4 && `🚚 Driver is traveling to pick up fish catches from the fisherman.`}
-                                    {getActiveStep(order) === 5 && `🚲 Driver is currently in transit to deliver catches to your address.`}
-                                    {getActiveStep(order) === 6 && '🎉 Delivered! Thank you for purchasing.'}
-                                  </p>
-                                  {order.delivery_info && (
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                                      <strong>Delivery Address / Info:</strong> {order.delivery_info}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-5 flex flex-col justify-center">
-                                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Driver Information</span>
-                                  {order.driver_id ? (
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-8 h-8 rounded-full bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-400 flex items-center justify-center text-xs font-bold uppercase">
-                                        DR
+
+                                {/* Detailed Status Logs */}
+                                {order.driver_id ? (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
+                                    <div>
+                                      <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Scanner Details</span>
+                                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                        {getActiveStep(order) === 2 && '💳 Awaiting payment verification.'}
+                                        {getActiveStep(order) === 3 && '📦 Paid successfully. Waiting for a delivery driver to accept this job.'}
+                                        {getActiveStep(order) === 4 && `🚚 Driver is traveling to pick up fish catches from the fisherman.`}
+                                        {getActiveStep(order) === 5 && `🚲 Driver is currently in transit to deliver catches to your address.`}
+                                        {getActiveStep(order) === 6 && '🎉 Delivered! Thank you for purchasing.'}
+                                      </p>
+                                      {order.delivery_info && order.delivery_info !== 'Direct Purchase' && (
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                                          <strong>Delivery Address / Info:</strong> {order.delivery_info}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-5 flex flex-col justify-center">
+                                      <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Driver Information</span>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-400 flex items-center justify-center text-xs font-bold uppercase">DR</div>
+                                        <div>
+                                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-sans">
+                                            {order.driver_name || getOrderDriver(order)?.name || 'Assigned Driver'}
+                                          </p>
+                                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            {order.driver_phone || getOrderDriver(order)?.phone || `Driver ID: #${order.driver_id}`}
+                                          </p>
+                                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            {order.driver_vehicle_type
+                                              ? `${order.driver_vehicle_type}${order.driver_vehicle_number ? ` • ${order.driver_vehicle_number}` : ''}`
+                                              : getOrderDriver(order)?.vehicle_type
+                                              ? `${getOrderDriver(order).vehicle_type}${getOrderDriver(order)?.vehicle_number ? ` • ${getOrderDriver(order).vehicle_number}` : ''}`
+                                              : 'Vehicle info not available'}
+                                          </p>
+                                          {order.estimated_delivery_time && <p className="text-xs text-cyan-600 dark:text-cyan-400">ETA: {order.estimated_delivery_time}</p>}
+                                        </div>
                                       </div>
-                                      <div>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-sans">
-                                          {order.driver_name || getOrderDriver(order)?.name || 'Assigned Driver'}
-                                        </p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                          {order.driver_phone || getOrderDriver(order)?.phone || `Driver ID: #${order.driver_id}`}
-                                        </p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                          {order.driver_vehicle_type 
-                                            ? `${order.driver_vehicle_type}${order.driver_vehicle_number ? ` • ${order.driver_vehicle_number}` : ''}` 
-                                            : getOrderDriver(order)?.vehicle_type 
-                                            ? `${getOrderDriver(order).vehicle_type}${getOrderDriver(order)?.vehicle_number ? ` • ${getOrderDriver(order).vehicle_number}` : ''}` 
-                                            : 'Vehicle info not available'}
-                                        </p>
-                                        {order.estimated_delivery_time && <p className="text-xs text-cyan-600 dark:text-cyan-400">ETA: {order.estimated_delivery_time}</p>}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* No driver = Direct Purchase (Admin / Fisherman buying own catch) */
+                                  isFisherman && order.status !== 'completed' ? (
+                                    /* Fisherman managing a customer order — let them assign a driver */
+                                    <div className="mt-6 bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
+                                      <div className="rounded-xl border border-cyan-200 dark:border-cyan-900/50 bg-cyan-50/60 dark:bg-cyan-950/20 p-4">
+                                        <div className="text-xs font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-400 mb-2">Assign Driver</div>
+                                        <div className="flex flex-col md:flex-row gap-2">
+                                          <select value={selectedDriverId} onChange={(e) => setSelectedDriverId(e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                                            <option value="">Select a driver</option>
+                                            {drivers.map((driver) => (
+                                              <option key={driver.id} value={driver.id}>{driver.name} {driver.phone ? `• ${driver.phone}` : ''}</option>
+                                            ))}
+                                          </select>
+                                          <button onClick={() => handleAssignDriver(order.id)} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-semibold transition">Assign Driver</button>
+                                        </div>
                                       </div>
                                     </div>
                                   ) : (
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 italic">No driver assigned yet.</p>
+                                    <div className="mt-6 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-xl p-4 flex items-center gap-3">
+                                      <span className="text-2xl">✅</span>
+                                      <div>
+                                        <p className="text-sm font-bold text-green-800 dark:text-green-300">Direct Purchase — Completed</p>
+                                        <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">This order was purchased directly. No truck delivery required.</p>
+                                      </div>
+                                    </div>
+                                  )
+                                )}
+                                
+                                {/* Fisherman Contact details (Customer only) */}
+                                {userRole === 'customer' && order.fisherman_name && (
+                                  <div className="border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-5 flex flex-col justify-center">
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Fisherman Contact</span>
+                                    <div className="flex flex-col gap-2">
+                                      <div>
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                          {order.fisherman_name}
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                          {order.fisherman_email}
+                                        </p>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1.5 mt-1">
+                                        {order.fisherman_phone && (
+                                          <a
+                                            href={`tel:${order.fisherman_phone}`}
+                                            className="inline-flex items-center justify-center px-2 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors text-xs font-semibold"
+                                          >
+                                            📞 Call
+                                          </a>
+                                        )}
+                                        {order.fisherman_whatsapp && (
+                                          <a
+                                            href={`https://wa.me/${order.fisherman_whatsapp.replace(/[^0-9]/g, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center justify-center px-2 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors text-xs font-semibold"
+                                          >
+                                            💬 WhatsApp
+                                          </a>
+                                        )}
+                                        {order.fisherman_facebook && (
+                                          <a
+                                            href={order.fisherman_facebook}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center justify-center px-2 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors text-xs font-semibold"
+                                          >
+                                            👥 Facebook
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="mt-5 flex flex-wrap gap-2">
+                                  {order.delivery_status === 'delivered' && !order.customer_confirmed && userRole === 'customer' && (
+                                    <button onClick={() => handleConfirmReceipt(order.id)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold">✅ I Received My Order</button>
+                                  )}
+                                  {isFisherman && order.customer_confirmed && order.status !== 'completed' && (
+                                    <button onClick={() => handleCompleteOrder(order.id)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold">Mark Completed</button>
                                   )}
                                 </div>
                               </div>
-
-                              <div className="mt-5 flex flex-wrap gap-2">
-                                {order.delivery_status === 'delivered' && !order.customer_confirmed && (
-                                  <button onClick={() => handleConfirmReceipt(order.id)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold">✅ I Received My Order</button>
-                                )}
-                                {isFisherman && order.customer_confirmed && order.status !== 'completed' && (
-                                  <button onClick={() => handleCompleteOrder(order.id)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold">Mark Completed</button>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
+                            </td>
+                          </tr>
+                        )}
                       </Fragment>
                     ))
                   ) : (

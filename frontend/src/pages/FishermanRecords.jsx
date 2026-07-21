@@ -14,7 +14,9 @@ function FishermanRecords() {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
+  const [speciesList, setSpeciesList] = useState([]);
   const [formData, setFormData] = useState({
+    fish_species_id: '',
     fish_name: '',
     weight: '',
     price: '',
@@ -23,10 +25,28 @@ function FishermanRecords() {
     image: '',
     status: 'listed'
   });
+  const [formErrors, setFormErrors] = useState({
+    fish_name: '',
+    weight: '',
+    price: '',
+    location: '',
+    catch_date: '',
+    image: ''
+  });
 
   useEffect(() => {
     loadCatches();
+    loadSpecies();
   }, []);
+
+  const loadSpecies = async () => {
+    try {
+      const response = await api.get('/fish-species');
+      setSpeciesList(response.data || []);
+    } catch (err) {
+      console.error('Failed to load fish species list', err);
+    }
+  };
 
   const loadCatches = async () => {
     try {
@@ -41,6 +61,7 @@ function FishermanRecords() {
 
   const resetForm = () => {
     setFormData({
+      fish_species_id: '',
       fish_name: '',
       weight: '',
       price: '',
@@ -50,88 +71,181 @@ function FishermanRecords() {
       status: 'listed'
     });
     setEditingId(null);
+    setFormErrors({
+      fish_name: '',
+      weight: '',
+      price: '',
+      location: '',
+      catch_date: '',
+      image: ''
+    });
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'fish_name') {
+      if (!value.trim()) {
+        setFormErrors(prev => ({ ...prev, fish_name: 'Please select a fish species.' }));
+        setFormData(prev => ({ ...prev, fish_species_id: '' }));
+      } else {
+        const match = speciesList.find(s => s.name.toLowerCase() === value.trim().toLowerCase());
+        if (match) {
+          setFormData(prev => ({ ...prev, fish_species_id: match.id, fish_name: match.name }));
+          setFormErrors(prev => ({ ...prev, fish_name: '' }));
+        } else {
+          setFormData(prev => ({ ...prev, fish_species_id: '' }));
+          setFormErrors(prev => ({ ...prev, fish_name: 'Please select a fish species.' }));
+        }
+      }
+    }
+
+    if (name === 'location') {
+      if (!value.trim()) {
+        setFormErrors(prev => ({ ...prev, location: 'Location is required.' }));
+      } else if (!/^[A-Za-z\s,.-]+$/.test(value)) {
+        setFormErrors(prev => ({ ...prev, location: 'Location can only contain letters, spaces, commas, periods, and hyphens.' }));
+      } else {
+        setFormErrors(prev => ({ ...prev, location: '' }));
+      }
+    }
+
+    if (name === 'weight') {
+      const w = parseFloat(value);
+      if (isNaN(w) || w < 2) {
+        setFormErrors(prev => ({ ...prev, weight: 'Weight must be at least 2 kg.' }));
+      } else {
+        setFormErrors(prev => ({ ...prev, weight: '' }));
+      }
+    }
+
+    if (name === 'price') {
+      const p = parseFloat(value);
+      if (isNaN(p) || p <= 0) {
+        setFormErrors(prev => ({ ...prev, price: 'Price must be greater than 0.' }));
+      } else {
+        setFormErrors(prev => ({ ...prev, price: '' }));
+      }
+    }
+
+    if (name === 'catch_date') {
+      if (!value) {
+        setFormErrors(prev => ({ ...prev, catch_date: 'Catch date is required.' }));
+      } else {
+        const inputDate = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const minDate = new Date();
+        minDate.setDate(today.getDate() - 20);
+        minDate.setHours(0, 0, 0, 0);
+
+        const maxDate = new Date();
+        maxDate.setHours(23, 59, 59, 999);
+
+        if (isNaN(inputDate.getTime())) {
+          setFormErrors(prev => ({ ...prev, catch_date: 'Invalid catch date.' }));
+        } else if (inputDate < minDate) {
+          setFormErrors(prev => ({ ...prev, catch_date: 'Catch date cannot be older than 20 days ago.' }));
+        } else if (inputDate > maxDate) {
+          setFormErrors(prev => ({ ...prev, catch_date: 'Catch date cannot be in the future.' }));
+        } else {
+          setFormErrors(prev => ({ ...prev, catch_date: '' }));
+        }
+      }
+    }
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setError('Only image files are allowed!');
-        setTimeout(() => setError(''), 3000);
+        setFormErrors(prev => ({ ...prev, image: 'Only image files are allowed!' }));
         e.target.value = ''; // Clear input
         return;
       }
+      setFormErrors(prev => ({ ...prev, image: '' }));
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData(prev => ({ ...prev, image: reader.result }));
       };
       reader.readAsDataURL(file);
+    } else {
+      if (!editingId) {
+        setFormErrors(prev => ({ ...prev, image: 'Catch image is required.' }));
+      }
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.weight || parseFloat(formData.weight) <= 0) {
-      setError('Weight must be greater than 0.');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-    if (parseFloat(formData.price) <= 0) {
-      setError('Price must be greater than 0.');
-      setTimeout(() => setError(''), 3000);
-      return;
+    setError('');
+    setSuccessMessage('');
+
+    let hasError = false;
+    const newErrors = { fish_name: '', weight: '', price: '', location: '', catch_date: '', image: '' };
+
+    if (!formData.fish_species_id) {
+      newErrors.fish_name = 'Please select a fish species.';
+      hasError = true;
     }
 
-    if (!formData.image) {
-      setError('Catch image is required.');
-      setTimeout(() => setError(''), 3000);
-      return;
+    const w = parseFloat(formData.weight);
+    if (isNaN(w) || w < 2) {
+      newErrors.weight = 'Weight must be at least 2 kg.';
+      hasError = true;
     }
 
-    if (formData.image.startsWith('data:') && !formData.image.startsWith('data:image/')) {
-      setError('Only image files are allowed.');
-      setTimeout(() => setError(''), 3000);
-      return;
+    const p = parseFloat(formData.price);
+    if (isNaN(p) || p <= 0) {
+      newErrors.price = 'Price must be greater than 0.';
+      hasError = true;
+    }
+
+    if (!formData.location.trim()) {
+      newErrors.location = 'Location is required.';
+      hasError = true;
+    } else if (!/^[A-Za-z\s,.-]+$/.test(formData.location)) {
+      newErrors.location = 'Location can only contain letters, spaces, commas, periods, and hyphens.';
+      hasError = true;
     }
 
     if (!formData.catch_date) {
-      setError('Catch date is required.');
-      setTimeout(() => setError(''), 3000);
-      return;
+      newErrors.catch_date = 'Catch date is required.';
+      hasError = true;
+    } else {
+      const inputDate = new Date(formData.catch_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const minDate = new Date();
+      minDate.setDate(today.getDate() - 20);
+      minDate.setHours(0, 0, 0, 0);
+
+      const maxDate = new Date();
+      maxDate.setHours(23, 59, 59, 999);
+
+      if (isNaN(inputDate.getTime())) {
+        newErrors.catch_date = 'Invalid catch date.';
+        hasError = true;
+      } else if (inputDate < minDate) {
+        newErrors.catch_date = 'Catch date cannot be older than 20 days ago.';
+        hasError = true;
+      } else if (inputDate > maxDate) {
+        newErrors.catch_date = 'Catch date cannot be in the future.';
+        hasError = true;
+      }
     }
 
-    const inputDate = new Date(formData.catch_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const minDate = new Date();
-    minDate.setDate(today.getDate() - 20);
-    minDate.setHours(0, 0, 0, 0);
-
-    const maxDate = new Date();
-    maxDate.setHours(23, 59, 59, 999);
-
-    if (isNaN(inputDate.getTime())) {
-      setError('Invalid catch date.');
-      setTimeout(() => setError(''), 3000);
-      return;
+    if (!editingId && !formData.image) {
+      newErrors.image = 'Catch image is required.';
+      hasError = true;
     }
 
-    if (inputDate < minDate) {
-      setError('Catch date cannot be older than 20 days ago.');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
+    setFormErrors(newErrors);
 
-    if (inputDate > maxDate) {
-      setError('Catch date cannot be in the future.');
-      setTimeout(() => setError(''), 3000);
+    if (hasError) {
       return;
     }
 
@@ -156,6 +270,7 @@ function FishermanRecords() {
 
   const handleEdit = (catch_) => {
     setFormData({
+      fish_species_id: catch_.fish_species_id || '',
       fish_name: catch_.fish_name,
       weight: catch_.weight || '',
       price: catch_.price,
@@ -166,6 +281,14 @@ function FishermanRecords() {
     });
     setEditingId(catch_.id);
     setShowForm(true);
+    setFormErrors({
+      fish_name: '',
+      weight: '',
+      price: '',
+      location: '',
+      catch_date: '',
+      image: ''
+    });
   };
 
   const handleDelete = async (id) => {
@@ -191,20 +314,12 @@ function FishermanRecords() {
   const totalValue = catches.reduce((sum, c) => sum + (parseFloat(c.price) * parseFloat(c.weight) || 0), 0);
   const activeCatches = catches.filter(c => c.status !== 'sold').length;
 
-  const defaultSpecies = ['Salmon', 'Tuna', 'Cod', 'Mackerel', 'Snapper'];
-  const uniqueSpecies = Array.from(
-    new Set([
-      ...defaultSpecies,
-      ...catches.map((c) => c.fish_name)
-    ].filter(Boolean))
-  );
-
   const uniqueLocations = Array.from(
     new Set(catches.map((c) => c.location).filter(Boolean))
   );
 
-  const filteredSpecies = uniqueSpecies
-    .filter((s) => s.toLowerCase().includes((formData.fish_name || '').toLowerCase()))
+  const filteredSpecies = speciesList
+    .filter((s) => s.name.toLowerCase().includes((formData.fish_name || '').toLowerCase()))
     .slice(0, 10);
 
   const filteredLocations = uniqueLocations
@@ -285,7 +400,11 @@ function FishermanRecords() {
                   onFocus={() => setShowSpeciesDropdown(true)}
                   onBlur={() => setTimeout(() => setShowSpeciesDropdown(false), 200)}
                   placeholder="Type or select species..."
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700 dark:text-slate-100"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 transition-all dark:bg-slate-700 dark:text-slate-100 ${
+                    formErrors.fish_name
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                      : 'border-slate-300 dark:border-slate-600 focus:border-cyan-500'
+                  }`}
                   required
                   autoComplete="off"
                 />
@@ -293,17 +412,21 @@ function FishermanRecords() {
                   <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg">
                     {filteredSpecies.map(species => (
                       <li
-                        key={species}
+                        key={species.id}
                         onMouseDown={() => {
-                          setFormData(prev => ({ ...prev, fish_name: species }));
+                          setFormData(prev => ({ ...prev, fish_species_id: species.id, fish_name: species.name }));
+                          setFormErrors(prev => ({ ...prev, fish_name: '' }));
                           setShowSpeciesDropdown(false);
                         }}
                         className="px-4 py-2.5 hover:bg-cyan-50 dark:hover:bg-slate-700 cursor-pointer text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors"
                       >
-                        {species}
+                        {species.name}
                       </li>
                     ))}
                   </ul>
+                )}
+                {formErrors.fish_name && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{formErrors.fish_name}</p>
                 )}
               </div>
               <div>
@@ -315,9 +438,16 @@ function FishermanRecords() {
                   name="weight"
                   value={formData.weight}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700 dark:text-slate-100"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 transition-all dark:bg-slate-700 dark:text-slate-100 ${
+                    formErrors.weight
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                      : 'border-slate-300 dark:border-slate-600 focus:border-cyan-500'
+                  }`}
                   required
                 />
+                {formErrors.weight && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{formErrors.weight}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Price per kg ($) *</label>
@@ -328,9 +458,16 @@ function FishermanRecords() {
                   name="price"
                   value={formData.price}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700 dark:text-slate-100"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 transition-all dark:bg-slate-700 dark:text-slate-100 ${
+                    formErrors.price
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                      : 'border-slate-300 dark:border-slate-600 focus:border-cyan-500'
+                  }`}
                   required
                 />
+                {formErrors.price && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{formErrors.price}</p>
+                )}
               </div>
               <div className="relative">
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Location *</label>
@@ -342,7 +479,11 @@ function FishermanRecords() {
                   onFocus={() => setShowLocationDropdown(true)}
                   onBlur={() => setTimeout(() => setShowLocationDropdown(false), 200)}
                   placeholder="Type or select location..."
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 dark:bg-slate-700 dark:text-slate-100"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 transition-all dark:bg-slate-700 dark:text-slate-100 ${
+                    formErrors.location
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                      : 'border-slate-300 dark:border-slate-600 focus:border-cyan-500'
+                  }`}
                   required
                   autoComplete="off"
                 />
@@ -353,6 +494,7 @@ function FishermanRecords() {
                         key={loc}
                         onMouseDown={() => {
                           setFormData(prev => ({ ...prev, location: loc }));
+                          setFormErrors(prev => ({ ...prev, location: '' }));
                           setShowLocationDropdown(false);
                         }}
                         className="px-4 py-2.5 hover:bg-cyan-50 dark:hover:bg-slate-700 cursor-pointer text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors"
@@ -361,6 +503,9 @@ function FishermanRecords() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {formErrors.location && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{formErrors.location}</p>
                 )}
               </div>
               <div>
@@ -372,9 +517,16 @@ function FishermanRecords() {
                   max={todayStr}
                   value={formData.catch_date}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300 dark:bg-slate-700"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 transition-all text-slate-700 dark:text-slate-300 dark:bg-slate-700 ${
+                    formErrors.catch_date
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                      : 'border-slate-300 dark:border-slate-600 focus:border-cyan-500'
+                  }`}
                   required
                 />
+                {formErrors.catch_date && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{formErrors.catch_date}</p>
+                )}
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Image Upload *</label>
@@ -382,9 +534,16 @@ function FishermanRecords() {
                   type="file"
                   accept="image/*"
                   onChange={handleImageChange}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300 dark:bg-slate-700"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 transition-all text-slate-700 dark:text-slate-300 dark:bg-slate-700 ${
+                    formErrors.image
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                      : 'border-slate-300 dark:border-slate-600 focus:border-cyan-500'
+                  }`}
                   required={!editingId}
                 />
+                {formErrors.image && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{formErrors.image}</p>
+                )}
                 {formData.image && (
                   <div className="mt-4">
                     <p className="text-sm text-slate-500 mb-2">Preview:</p>

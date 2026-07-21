@@ -1,4 +1,4 @@
-import { findUserById, getAllUsers, getUsersByRole, deleteUserById, updateUserStatus, getSystemStats, getRevenueByDay, updateUserProfile } from '../models/userModel.js';
+import { findUserById, getAllUsers, getUsersByRole, deleteUserById, updateUserStatus, getSystemStats, getRevenueByDay, updateUserProfile, getAdminContact } from '../models/userModel.js';
 
 export async function currentUser(req, res) {
   const user = await findUserById(req.user.id);
@@ -50,14 +50,14 @@ export async function getRevenueAnalytics(req, res) {
 }
 
 export async function updateProfileController(req, res) {
-  const { name, email, profile_picture } = req.body;
+  const { name, email, profile_picture, phone, whatsapp, facebook } = req.body;
   
-  if (!name && !email && profile_picture === undefined) {
+  if (!name && !email && profile_picture === undefined && phone === undefined && whatsapp === undefined && facebook === undefined) {
     return res.status(400).json({ message: 'At least one field is required to update' });
   }
 
   try {
-    const updatedUser = await updateUserProfile(req.user.id, { name, email, profile_picture });
+    const updatedUser = await updateUserProfile(req.user.id, { name, email, profile_picture, phone, whatsapp, facebook });
     if (!updatedUser) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -67,6 +67,25 @@ export async function updateProfileController(req, res) {
       return res.status(409).json({ message: 'Email already in use' });
     }
     res.status(500).json({ message: 'Error updating profile' });
+  }
+}
+
+export async function getAdminContactController(req, res) {
+  try {
+    const adminContact = await getAdminContact();
+    if (!adminContact) {
+      return res.json({
+        name: 'Fisher Support',
+        email: 'support@fisher.com',
+        phone: null,
+        whatsapp: null,
+        facebook: null
+      });
+    }
+    res.json(adminContact);
+  } catch (error) {
+    console.error('Error in getAdminContactController:', error);
+    res.status(500).json({ message: 'Error retrieving admin contact info' });
   }
 }
 

@@ -18,6 +18,7 @@ import FishermanDrivers from './pages/FishermanDrivers';
 import Market from './pages/Market';
 import Settings from './pages/Settings';
 import Checkout from './pages/Checkout';
+import HelpCenter from './pages/HelpCenter';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function AppContent() {
@@ -173,6 +174,16 @@ function AppContent() {
 
         {/* Market - Public (no auth required) */}
         <Route path="/market" element={<Market />} />
+
+        {/* Help Center - Any authenticated user */}
+        <Route
+          path="/help"
+          element={
+            <ProtectedRoute>
+              <HelpCenter />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </div>
   );

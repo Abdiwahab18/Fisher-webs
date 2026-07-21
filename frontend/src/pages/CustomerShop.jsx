@@ -17,9 +17,35 @@ function CustomerShop() {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedCatch, setSelectedCatch] = useState(null);
   const [deliveryInfo, setDeliveryInfo] = useState('');
+  const [deliveryInfoError, setDeliveryInfoError] = useState('');
   const navigate = useNavigate();
   const userRole = localStorage.getItem('fisher_role');
   const currentUserId = localStorage.getItem('fisher_user_id') ? Number(localStorage.getItem('fisher_user_id')) : null;
+
+  const validateDeliveryInfo = (value) => {
+    if (!value.trim()) {
+      setDeliveryInfoError('Delivery/contact information is required.');
+      return false;
+    }
+
+    // Extract any continuous sequences of digits (and optional leading +) that look like phone numbers
+    // Clean spaces and hyphens first to handle formatted numbers like "61 512 34 56" or "+252-615-123456"
+    const cleaned = value.replace(/[\s-]/g, '');
+    const candidateMatches = cleaned.match(/\+?\d{5,15}/g) || [];
+
+    for (const cand of candidateMatches) {
+      const isValidMobile = /^(\+?252|00252|0)?(61|62|63|65|68|79|90)\d{7}$/.test(cand);
+      const isValidLandline = /^(\+?252|00252|0)?[1-5]\d{6}$/.test(cand);
+
+      if (!isValidMobile && !isValidLandline) {
+        setDeliveryInfoError('If you enter a phone number, it must be a valid Somali number (e.g. +25261xxxxxxx, 61xxxxxxx, or 061xxxxxxx).');
+        return false;
+      }
+    }
+
+    setDeliveryInfoError('');
+    return true;
+  };
 
   useEffect(() => {
     loadFavorites();
@@ -130,8 +156,7 @@ function CustomerShop() {
     try {
       const total = Number(getTotalPrice().toFixed(2));
 
-      if (!deliveryInfo.trim()) {
-        setError('Delivery/contact information is required.');
+      if (!validateDeliveryInfo(deliveryInfo)) {
         return;
       }
 
@@ -148,14 +173,21 @@ function CustomerShop() {
       const response = await api.post('/orders', orderData);
       setCart([]);
       setDeliveryInfo('');
+      setDeliveryInfoError('');
       setShowCart(false);
-      navigate('/checkout', { 
-        state: { 
-          orderId: response.data.order.id, 
-          totalAmount: total, 
-          items: orderData.items 
-        } 
-      });
+      const userRole = localStorage.getItem('fisher_role');
+      if (userRole === 'fisherman' || userRole === 'admin') {
+        alert('Purchase completed successfully! Status is set to completed (no truck status required).');
+        navigate('/orders');
+      } else {
+        navigate('/checkout', { 
+          state: { 
+            orderId: response.data.order.id, 
+            totalAmount: total, 
+            items: orderData.items 
+          } 
+        });
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to place order.');
     }
@@ -451,11 +483,21 @@ function CustomerShop() {
                       <label className="block text-xs uppercase text-slate-500 dark:text-slate-400 mb-2">Delivery / contact info</label>
                       <textarea
                         value={deliveryInfo}
-                        onChange={(e) => setDeliveryInfo(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm"
+                        onChange={(e) => {
+                          setDeliveryInfo(e.target.value);
+                          validateDeliveryInfo(e.target.value);
+                        }}
+                        className={`w-full px-4 py-2 border rounded-lg text-sm outline-none transition-all ${
+                          deliveryInfoError
+                            ? 'border-red-500 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                            : 'border-slate-300 dark:border-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
+                        }`}
                         placeholder="Enter address, phone number, or delivery notes"
                         rows={3}
                       />
+                      {deliveryInfoError && (
+                        <p className="mt-1 text-xs text-red-500 font-medium">{deliveryInfoError}</p>
+                      )}
                     </div>
                   </div>
 

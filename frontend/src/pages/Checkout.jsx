@@ -28,13 +28,17 @@ function Checkout() {
     setError('');
 
     try {
+    const userRole = localStorage.getItem('fisher_role');
       await api.post('/payments/waafi', {
         orderId,
         accountNo,
         amount: totalAmount
       });
-      alert('Payment successful! Your order is now processing.');
-      navigate('/dashboard');
+      const isDirectRole = userRole === 'admin' || userRole === 'fisherman';
+      alert(isDirectRole
+        ? 'Payment successful! Your order has been completed.'
+        : 'Payment successful! Your order is now processing.');
+      navigate('/orders');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to process payment');
       setLoading(false);

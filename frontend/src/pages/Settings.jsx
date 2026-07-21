@@ -18,12 +18,14 @@ function Settings() {
   const [notifications, setNotifications] = useState(true);
 
   // Profile state
-  const [profileForm, setProfileForm] = useState({ name: '', email: '' });
+  const [profileForm, setProfileForm] = useState({ name: '', email: '', phone: '', whatsapp: '', facebook: '' });
   const [profilePicture, setProfilePicture] = useState('');
   const [editingProfile, setEditingProfile] = useState(false);
+  const [profileErrors, setProfileErrors] = useState({ name: '', email: '', phone: '', whatsapp: '', facebook: '' });
   
   // Security state
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
+  const [passwordErrors, setPasswordErrors] = useState({ current: '', new: '', confirm: '' });
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -56,7 +58,13 @@ function Settings() {
       try {
         const response = await api.get('/users/me');
         setUser(response.data);
-        setProfileForm({ name: response.data.name, email: response.data.email });
+        setProfileForm({
+          name: response.data.name || '',
+          email: response.data.email || '',
+          phone: response.data.phone || '',
+          whatsapp: response.data.whatsapp || '',
+          facebook: response.data.facebook || ''
+        });
         setProfilePicture(response.data.profile_picture || '');
       } catch (err) {
         showMessage('error', 'Unable to load profile data.');
@@ -98,15 +106,96 @@ function Settings() {
   const handleProfileInputChange = (e) => {
     const { name, value } = e.target;
     setProfileForm(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'name') {
+      if (!value.trim()) {
+        setProfileErrors(prev => ({ ...prev, name: 'Name is required.' }));
+      } else if (!/^[A-Za-z\s]+$/.test(value)) {
+        setProfileErrors(prev => ({ ...prev, name: 'Name can only contain alphabetic characters and spaces.' }));
+      } else {
+        setProfileErrors(prev => ({ ...prev, name: '' }));
+      }
+    }
+
+    if (name === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!value.trim()) {
+        setProfileErrors(prev => ({ ...prev, email: 'Email is required.' }));
+      } else if (!emailRegex.test(value)) {
+        setProfileErrors(prev => ({ ...prev, email: 'Please enter a valid email address.' }));
+      } else {
+        setProfileErrors(prev => ({ ...prev, email: '' }));
+      }
+    }
+
+    if (name === 'phone' || name === 'whatsapp') {
+      if (value && !/^\+?[0-9\s-]+$/.test(value)) {
+        setProfileErrors(prev => ({ ...prev, [name]: 'Must be a valid number (digits, spaces, hyphens, or leading + only).' }));
+      } else {
+        setProfileErrors(prev => ({ ...prev, [name]: '' }));
+      }
+    }
+
+    if (name === 'facebook') {
+      if (value && value.trim() && !/^https?:\/\/(www\.)?facebook\.com\/.+/i.test(value)) {
+        setProfileErrors(prev => ({ ...prev, facebook: 'Must be a valid Facebook profile URL (e.g. https://facebook.com/username).' }));
+      } else {
+        setProfileErrors(prev => ({ ...prev, facebook: '' }));
+      }
+    }
   };
 
   const handleSaveProfile = async () => {
+    let hasError = false;
+    const newErrors = { name: '', email: '', phone: '', whatsapp: '', facebook: '' };
+
+    if (!profileForm.name.trim()) {
+      newErrors.name = 'Name is required.';
+      hasError = true;
+    } else if (!/^[A-Za-z\s]+$/.test(profileForm.name)) {
+      newErrors.name = 'Name can only contain alphabetic characters and spaces.';
+      hasError = true;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!profileForm.email.trim()) {
+      newErrors.email = 'Email is required.';
+      hasError = true;
+    } else if (!emailRegex.test(profileForm.email)) {
+      newErrors.email = 'Please enter a valid email address.';
+      hasError = true;
+    }
+
+    if (profileForm.phone && !/^\+?[0-9\s-]+$/.test(profileForm.phone)) {
+      newErrors.phone = 'Must be a valid phone number.';
+      hasError = true;
+    }
+
+    if (profileForm.whatsapp && !/^\+?[0-9\s-]+$/.test(profileForm.whatsapp)) {
+      newErrors.whatsapp = 'Must be a valid WhatsApp number.';
+      hasError = true;
+    }
+
+    if (profileForm.facebook && !/^https?:\/\/(www\.)?facebook\.com\/.+/i.test(profileForm.facebook)) {
+      newErrors.facebook = 'Must be a valid Facebook profile URL.';
+      hasError = true;
+    }
+
+    setProfileErrors(newErrors);
+
+    if (hasError) {
+      return;
+    }
+
     setSavingProfile(true);
     try {
       const response = await api.patch('/users/me/profile', {
         name: profileForm.name,
         email: profileForm.email,
         profile_picture: profilePicture || undefined,
+        phone: profileForm.phone || null,
+        whatsapp: profileForm.whatsapp || null,
+        facebook: profileForm.facebook || null
       });
       setUser(response.data);
       showMessage('success', 'Profile updated successfully!');
@@ -118,16 +207,82 @@ function Settings() {
     }
   };
 
-  const handlePasswordChange = async (e) => {
+  const handlePasswordFormChange = (field, value) => {
+    const updated = { ...passwordForm, [field]: value };
+    setPasswordForm(updated);
+
+    const newErrors = { ...passwordErrors };
+
+    if (field === 'current') {
+      if (!value) {
+        newErrors.current = 'Current password is required.';
+      } else {
+        newErrors.current = '';
+      }
+    }
+
+    if (field === 'new') {
+      if (!value) {
+        newErrors.new = 'New password is required.';
+      } else if (value.length < 8) {
+        newErrors.new = 'Password must be at least 8 characters long.';
+      } else {
+        newErrors.new = '';
+      }
+
+      if (updated.confirm && value !== updated.confirm) {
+        newErrors.confirm = 'New passwords do not match.';
+      } else {
+        newErrors.confirm = '';
+      }
+    }
+
+    if (field === 'confirm') {
+      if (!value) {
+        newErrors.confirm = 'Please confirm your new password.';
+      } else if (updated.new !== value) {
+        newErrors.confirm = 'New passwords do not match.';
+      } else {
+        newErrors.confirm = '';
+      }
+    }
+
+    setPasswordErrors(newErrors);
+  };
+
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    if(passwordForm.current !== passwordForm.current){
-      return showMessage('error:the current password is wrong')}
-    if (passwordForm.new.length < 8) {
-      return showMessage('error', 'Password must be at least 8 characters long!');
+
+    let hasError = false;
+    const newErrors = { current: '', new: '', confirm: '' };
+
+    if (!passwordForm.current) {
+      newErrors.current = 'Current password is required.';
+      hasError = true;
     }
-    if (passwordForm.new !== passwordForm.confirm) {
-      return showMessage('error', 'New passwords do not match!');
+
+    if (!passwordForm.new) {
+      newErrors.new = 'New password is required.';
+      hasError = true;
+    } else if (passwordForm.new.length < 8) {
+      newErrors.new = 'Password must be at least 8 characters long.';
+      hasError = true;
     }
+
+    if (!passwordForm.confirm) {
+      newErrors.confirm = 'Please confirm your new password.';
+      hasError = true;
+    } else if (passwordForm.new !== passwordForm.confirm) {
+      newErrors.confirm = 'New passwords do not match.';
+      hasError = true;
+    }
+
+    setPasswordErrors(newErrors);
+
+    if (hasError) {
+      return;
+    }
+
     setSavingPassword(true);
     try {
       // Mocking the password update API call if not available
@@ -135,6 +290,7 @@ function Settings() {
       await new Promise(resolve => setTimeout(resolve, 800)); // Simulate delay
       showMessage('success', 'Password changed successfully!');
       setPasswordForm({ current: '', new: '', confirm: '' });
+      setPasswordErrors({ current: '', new: '', confirm: '' });
     } catch (err) {
       showMessage('error', 'Failed to update password.');
     } finally {
@@ -243,6 +399,22 @@ function Settings() {
                       <p className="text-base font-medium text-slate-900 dark:text-white">{user?.email || 'Loading...'}</p>
                     </div>
                     <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                      <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Phone Number</p>
+                      <p className="text-base font-medium text-slate-900 dark:text-white">{user?.phone || 'Not set'}</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                      <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">WhatsApp Number</p>
+                      <p className="text-base font-medium text-slate-900 dark:text-white">{user?.whatsapp || 'Not set'}</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 col-span-1 md:col-span-2">
+                      <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Facebook Profile Link</p>
+                      {user?.facebook ? (
+                        <a href={user.facebook} target="_blank" rel="noopener noreferrer" className="text-base font-medium text-cyan-600 dark:text-cyan-400 hover:underline">{user.facebook}</a>
+                      ) : (
+                        <p className="text-base font-medium text-slate-900 dark:text-white">Not set</p>
+                      )}
+                    </div>
+                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                       <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Account Role</p>
                       <p className="text-base font-medium text-slate-900 dark:text-white capitalize">{user?.role || 'N/A'}</p>
                     </div>
@@ -265,8 +437,15 @@ function Settings() {
                       name="name"
                       value={profileForm.name}
                       onChange={handleProfileInputChange}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all"
+                      className={`w-full px-4 py-2.5 rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none transition-all ${
+                        profileErrors.name
+                          ? 'border-red-500 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500'
+                      }`}
                     />
+                    {profileErrors.name && (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.name}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email Address</label>
@@ -275,8 +454,69 @@ function Settings() {
                       name="email"
                       value={profileForm.email}
                       onChange={handleProfileInputChange}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all"
+                      className={`w-full px-4 py-2.5 rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none transition-all ${
+                        profileErrors.email
+                          ? 'border-red-500 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500'
+                      }`}
                     />
+                    {profileErrors.email && (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.email}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Phone Number</label>
+                    <input
+                      type="text"
+                      name="phone"
+                      value={profileForm.phone}
+                      onChange={handleProfileInputChange}
+                      placeholder="e.g. +252615123456"
+                      className={`w-full px-4 py-2.5 rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none transition-all ${
+                        profileErrors.phone
+                          ? 'border-red-500 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500'
+                      }`}
+                    />
+                    {profileErrors.phone && (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.phone}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">WhatsApp Number</label>
+                    <input
+                      type="text"
+                      name="whatsapp"
+                      value={profileForm.whatsapp}
+                      onChange={handleProfileInputChange}
+                      placeholder="e.g. +252615123456"
+                      className={`w-full px-4 py-2.5 rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none transition-all ${
+                        profileErrors.whatsapp
+                          ? 'border-red-500 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500'
+                      }`}
+                    />
+                    {profileErrors.whatsapp && (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.whatsapp}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Facebook Profile Link</label>
+                    <input
+                      type="text"
+                      name="facebook"
+                      value={profileForm.facebook}
+                      onChange={handleProfileInputChange}
+                      placeholder="e.g. https://facebook.com/username"
+                      className={`w-full px-4 py-2.5 rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none transition-all ${
+                        profileErrors.facebook
+                          ? 'border-red-500 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500'
+                      }`}
+                    />
+                    {profileErrors.facebook && (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.facebook}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Profile Picture</label>
@@ -313,7 +553,14 @@ function Settings() {
                     <button
                       onClick={() => {
                         setEditingProfile(false);
-                        setProfileForm({ name: user.name, email: user.email });
+                        setProfileForm({
+                          name: user.name || '',
+                          email: user.email || '',
+                          phone: user.phone || '',
+                          whatsapp: user.whatsapp || '',
+                          facebook: user.facebook || ''
+                        });
+                        setProfileErrors({ name: '', email: '', phone: '', whatsapp: '', facebook: '' });
                       }}
                       className="px-6 py-2.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-semibold rounded-xl transition-colors"
                     >
@@ -396,17 +643,23 @@ function Settings() {
               {/* Change Password */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 dark:border-slate-800">
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Change Password</h2>
-                <form onSubmit={handlePasswordChange} className="max-w-lg space-y-4">
+                <form onSubmit={handlePasswordSubmit} className="max-w-lg space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Current Password</label>
                     <input
                       type="password"
                       required
                       value={passwordForm.current}
-                      onChange={(e) => setPasswordForm({...passwordForm, current: e.target.value})}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                      onChange={(e) => handlePasswordFormChange('current', e.target.value)}
+                      className={`w-full px-4 py-2.5 rounded-xl border bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white outline-none ${
+                        passwordErrors.current
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500'
+                      }`}
                     />
-                      
+                    {passwordErrors.current && (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{passwordErrors.current}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">New Password</label>
@@ -414,12 +667,20 @@ function Settings() {
                       type="password"
                       required
                       value={passwordForm.new}
-                      onChange={(e) => setPasswordForm({...passwordForm, new: e.target.value})}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                      onChange={(e) => handlePasswordFormChange('new', e.target.value)}
+                      className={`w-full px-4 py-2.5 rounded-xl border bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white outline-none ${
+                        passwordErrors.new
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500'
+                      }`}
                     />
-                    <p className={`mt-1.5 text-xs ${passwordForm.new.length >= 8 ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                      {passwordForm.new.length >= 8 ? '✓ ' : ''}Minimum 8 characters ({passwordForm.new.length}/8)
-                    </p>
+                    {passwordErrors.new ? (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{passwordErrors.new}</p>
+                    ) : (
+                      <p className={`mt-1.5 text-xs ${passwordForm.new.length >= 8 ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                        {passwordForm.new.length >= 8 ? '✓ ' : ''}Minimum 8 characters ({passwordForm.new.length}/8)
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Confirm New Password</label>
@@ -427,9 +688,16 @@ function Settings() {
                       type="password"
                       required
                       value={passwordForm.confirm}
-                      onChange={(e) => setPasswordForm({...passwordForm, confirm: e.target.value})}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                      onChange={(e) => handlePasswordFormChange('confirm', e.target.value)}
+                      className={`w-full px-4 py-2.5 rounded-xl border bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white outline-none ${
+                        passwordErrors.confirm
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500'
+                      }`}
                     />
+                    {passwordErrors.confirm && (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{passwordErrors.confirm}</p>
+                    )}
                   </div>
                   <div className="pt-2">
                     <button

@@ -4,11 +4,9 @@ import Layout from '../components/Layout';
 import { useNotification } from '../context/NotificationContext';
 
 function DriverDashboard() {
-  const [availableOrders, setAvailableOrders] = useState([]);
   const [myDeliveries, setMyDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('available'); // 'available' or 'my-deliveries'
   const [user, setUser] = useState(null);
 
   const { notificationsHistory } = useNotification();
@@ -21,25 +19,9 @@ function DriverDashboard() {
       const userRes = await api.get('/users/me');
       setUser(userRes.data);
 
-      // Fetch available deliveries (processing status and no driver)
-      const availableRes = await api.get('/orders/available-deliveries');
-      const rawAvailable = availableRes.data || [];
-
       // Fetch my deliveries (assigned to me)
       const myDeliveriesRes = await api.get('/orders/my-deliveries');
       const rawMyDeliveries = myDeliveriesRes.data || [];
-
-      // Load items for available orders
-      const availableWithItems = await Promise.all(
-        rawAvailable.map(async (order) => {
-          try {
-            const itemsRes = await api.get(`/orders/${order.id}/items`);
-            return { ...order, items: itemsRes.data || [] };
-          } catch {
-            return { ...order, items: [] };
-          }
-        })
-      );
 
       // Load items for my deliveries
       const myWithItems = await Promise.all(
@@ -53,7 +35,6 @@ function DriverDashboard() {
         })
       );
 
-      setAvailableOrders(availableWithItems);
       setMyDeliveries(myWithItems);
     } catch (err) {
       console.error('Error loading driver dashboard data:', err);
@@ -78,18 +59,6 @@ function DriverDashboard() {
     prevNotifCount.current = curr;
   }, [notificationsHistory, loadData]);
 
-  const handleAcceptDelivery = async (orderId) => {
-    try {
-      await api.post(`/orders/${orderId}/accept-delivery`);
-      alert('Delivery accepted successfully!');
-      loadData();
-      setActiveTab('my-deliveries');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to accept delivery.');
-      console.error('Error accepting delivery:', err);
-    }
-  };
-
   const handleUpdateStatus = async (orderId, newDeliveryStatus) => {
     try {
       await api.patch(`/orders/${orderId}/delivery-status`, {
@@ -110,7 +79,6 @@ function DriverDashboard() {
     (d) => d.delivery_status !== 'delivered'
   );
   const activeCount = activeDeliveries.length;
-  const availableCount = availableOrders.length;
 
   // HSL visual status mappings
   const getStatusBadge = (status, deliveryStatus) => {
@@ -159,18 +127,7 @@ function DriverDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-5 shadow-md border-l-4 border-cyan-500">
-            <div className="flex justify-between items-start mb-3">
-              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Available Jobs</p>
-              <span className="text-xl">📋</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900 dark:text-slate-100">{availableCount}</span>
-              <span className="text-xs text-slate-500 font-medium">ready to pick up</span>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
           <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-5 shadow-md border-l-4 border-blue-500">
             <div className="flex justify-between items-start mb-3">
               <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase">Active Routes</p>
@@ -194,30 +151,6 @@ function DriverDashboard() {
           </div>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex gap-4 border-b border-slate-200 dark:border-slate-700 mb-6">
-          <button
-            onClick={() => setActiveTab('available')}
-            className={`pb-3 text-sm font-semibold transition-all relative ${
-              activeTab === 'available'
-                ? 'text-cyan-600 dark:text-cyan-400 border-b-2 border-cyan-500'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            Available Jobs ({availableCount})
-          </button>
-          <button
-            onClick={() => setActiveTab('my-deliveries')}
-            className={`pb-3 text-sm font-semibold transition-all relative ${
-              activeTab === 'my-deliveries'
-                ? 'text-cyan-600 dark:text-cyan-400 border-b-2 border-cyan-500'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            My Deliveries ({myDeliveries.length})
-          </button>
-        </div>
-
         {/* Error message */}
         {error && (
           <div className="bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 p-4 rounded-xl mb-6">
@@ -230,78 +163,11 @@ function DriverDashboard() {
           <div className="flex justify-center items-center h-48">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-cyan-500"></div>
           </div>
-        ) : activeTab === 'available' ? (
-          /* Available Jobs View */
-          availableOrders.length === 0 ? (
-            <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-8 text-center shadow-md">
-              <p className="text-slate-500 dark:text-slate-400">No available delivery jobs right now. Check back soon!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {availableOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow border border-slate-100 dark:border-slate-750 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-sm font-bold text-cyan-600">Order #{order.id}</span>
-                      <span className="text-xs text-slate-500">
-                        {new Date(order.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    <div className="space-y-3 mb-6">
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 uppercase">Customer Name</p>
-                        <p className="text-sm font-medium">{order.customer_name || 'Anonymous'}</p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 uppercase">Delivery Address</p>
-                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                          {order.delivery_info || 'No address specified'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 uppercase">Fish Catch Details</p>
-                        <div className="space-y-1 mt-1">
-                          {order.items?.map((item) => (
-                            <div key={item.id} className="text-sm flex justify-between">
-                              <span className="text-slate-600 dark:text-slate-400">
-                                🐟 {item.fish_name}
-                              </span>
-                              <span className="font-semibold">{item.weight} kg</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                        <span className="text-xs font-semibold text-slate-500 uppercase">Value</span>
-                        <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                          ${Number(order.total_price || 0).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleAcceptDelivery(order.id)}
-                    className="w-full py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-700 hover:to-cyan-600 text-white font-bold rounded-xl transition shadow hover:shadow-cyan-500/20"
-                  >
-                    Accept Delivery Job
-                  </button>
-                </div>
-              ))}
-            </div>
-          )
         ) : (
           /* My Deliveries View */
           myDeliveries.length === 0 ? (
             <div className="bg-white dark:bg-slate-800 dark:text-slate-100 rounded-2xl p-8 text-center shadow-md">
-              <p className="text-slate-500 dark:text-slate-400">You haven't accepted any delivery jobs yet.</p>
+              <p className="text-slate-500 dark:text-slate-400">You have no assigned deliveries. The fisherman will assign delivery jobs to you.</p>
             </div>
           ) : (
             <div className="space-y-6">

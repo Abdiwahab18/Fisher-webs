@@ -9,19 +9,78 @@ function Register() {
   const [role, setRole] = useState('customer');
   const [profilePicture, setProfilePicture] = useState('');
   const [message, setMessage] = useState('');
+  const [errors, setErrors] = useState({ name: '', email: '', password: '' });
   const navigate = useNavigate();
+
+  const handleNameChange = (val) => {
+    setName(val);
+    if (!val.trim()) {
+      setErrors(prev => ({ ...prev, name: 'Name is required.' }));
+    } else if (!/^[A-Za-z\s]+$/.test(val)) {
+      setErrors(prev => ({ ...prev, name: 'Name can only contain alphabetic characters and spaces.' }));
+    } else {
+      setErrors(prev => ({ ...prev, name: '' }));
+    }
+  };
+
+  const handleEmailChange = (val) => {
+    setEmail(val);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!val.trim()) {
+      setErrors(prev => ({ ...prev, email: 'Email is required.' }));
+    } else if (!emailRegex.test(val)) {
+      setErrors(prev => ({ ...prev, email: 'Please enter a valid email address.' }));
+    } else {
+      setErrors(prev => ({ ...prev, email: '' }));
+    }
+  };
+
+  const handlePasswordChange = (val) => {
+    setPassword(val);
+    if (!val) {
+      setErrors(prev => ({ ...prev, password: 'Password is required.' }));
+    } else if (val.length < 8) {
+      setErrors(prev => ({ ...prev, password: 'Password must be at least 8 characters long.' }));
+    } else {
+      setErrors(prev => ({ ...prev, password: '' }));
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setMessage('');
 
-    if (/\d/.test(name)) {
-      setMessage('Name cannot contain numbers!');
-      return;
+    let hasError = false;
+    const newErrors = { name: '', email: '', password: '' };
+
+    if (!name.trim()) {
+      newErrors.name = 'Name is required.';
+      hasError = true;
+    } else if (!/^[A-Za-z\s]+$/.test(name)) {
+      newErrors.name = 'Name can only contain alphabetic characters and spaces.';
+      hasError = true;
     }
 
-    if (password.length < 8) {
-      setMessage('Password must be at least 8 characters long!');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      newErrors.email = 'Email is required.';
+      hasError = true;
+    } else if (!emailRegex.test(email)) {
+      newErrors.email = 'Please enter a valid email address.';
+      hasError = true;
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required.';
+      hasError = true;
+    } else if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters long.';
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+
+    if (hasError) {
       return;
     }
 
@@ -46,10 +105,17 @@ function Register() {
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3"
+              onChange={(e) => handleNameChange(e.target.value)}
+              className={`mt-2 w-full rounded-2xl border px-4 py-3 bg-slate-50 dark:bg-slate-900 outline-none transition-all ${
+                errors.name
+                  ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                  : 'border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-cyan-500'
+              }`}
               required
             />
+            {errors.name && (
+              <p className="mt-1 text-xs text-red-500 font-medium">{errors.name}</p>
+            )}
           </div>
 
           <div>
@@ -57,10 +123,17 @@ function Register() {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3"
+              onChange={(e) => handleEmailChange(e.target.value)}
+              className={`mt-2 w-full rounded-2xl border px-4 py-3 bg-slate-50 dark:bg-slate-900 outline-none transition-all ${
+                errors.email
+                  ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                  : 'border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-cyan-500'
+              }`}
               required
             />
+            {errors.email && (
+              <p className="mt-1 text-xs text-red-500 font-medium">{errors.email}</p>
+            )}
           </div>
 
           <div>
@@ -68,13 +141,17 @@ function Register() {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3"
+              onChange={(e) => handlePasswordChange(e.target.value)}
+              className={`mt-2 w-full rounded-2xl border px-4 py-3 bg-slate-50 dark:bg-slate-900 outline-none transition-all ${
+                errors.password
+                  ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                  : 'border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-cyan-500'
+              }`}
               required
             />
-            {/* <p className={`mt-1.5 text-sm ${password.length >= 8 ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>
-              {password.length >= 8 ? '✓ ' : ''}Minimum 8 characters ({password.length}/8)
-            </p> */}
+            {errors.password && (
+              <p className="mt-1 text-xs text-red-500 font-medium">{errors.password}</p>
+            )}
           </div>
 
           <div>
@@ -110,7 +187,7 @@ function Register() {
             >
               <option value="customer">Customer</option>
               <option value="fisherman">Fisherman</option>
-              <option value="driver">Driver</option>
+              {/* <option value="driver">Driver</option> */}
               <option value="admin">Admin</option>
             </select>
           </div>
